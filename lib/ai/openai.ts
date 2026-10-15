@@ -11,14 +11,34 @@ type ResponsePayload = {
   usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
 };
 
+export function hasAiPricingConfigured(): boolean {
+  const inputValue = process.env.OPENAI_INPUT_USD_PER_1M_TOKENS?.trim();
+  const outputValue = process.env.OPENAI_OUTPUT_USD_PER_1M_TOKENS?.trim();
+  if (!inputValue || !outputValue) return false;
+  const inputRate = Number(inputValue);
+  const outputRate = Number(outputValue);
+  return Number.isFinite(inputRate) && Number.isFinite(outputRate) && inputRate >= 0 && outputRate >= 0;
+}
+
 function estimateCost(usage: AiUsage): number | null {
   const inputValue = process.env.OPENAI_INPUT_USD_PER_1M_TOKENS?.trim();
   const outputValue = process.env.OPENAI_OUTPUT_USD_PER_1M_TOKENS?.trim();
-  if (!inputValue || !outputValue) return null;
+  if (!hasAiPricingConfigured() || !inputValue || !outputValue) return null;
   const inputRate = Number(inputValue);
   const outputRate = Number(outputValue);
   if (!Number.isFinite(inputRate) || !Number.isFinite(outputRate) || inputRate < 0 || outputRate < 0) return null;
   return Number(((usage.input_tokens * inputRate + usage.output_tokens * outputRate) / 1_000_000).toFixed(8));
+}
+
+export function estimateAiReservationCost(inputCharacters: number, maximumOutputTokens: number): number | null {
+  const inputValue = process.env.OPENAI_INPUT_USD_PER_1M_TOKENS?.trim();
+  const outputValue = process.env.OPENAI_OUTPUT_USD_PER_1M_TOKENS?.trim();
+  if (!hasAiPricingConfigured() || !inputValue || !outputValue) return null;
+  const inputRate = Number(inputValue);
+  const outputRate = Number(outputValue);
+  if (!Number.isFinite(inputRate) || !Number.isFinite(outputRate) || inputRate < 0 || outputRate < 0) return null;
+  const conservativeInputTokens = Math.ceil(Math.max(0, inputCharacters) / 2);
+  return Number(((conservativeInputTokens * inputRate + Math.max(0, maximumOutputTokens) * outputRate) / 1_000_000).toFixed(8));
 }
 
 export async function getWorkspaceAssistantReply(instructions: string, turns: AiTurn[], userId: string) {

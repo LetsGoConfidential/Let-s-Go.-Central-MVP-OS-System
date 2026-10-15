@@ -1,12 +1,14 @@
 import { redirect } from "next/navigation";
 import { Activity, Bot, CalendarClock, FileText, FolderOpen, ListTodo, PlugZap, Plus, Send, ShieldCheck, Users, WalletCards } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { cancelAiTaskDraft, confirmAiTaskDraft, createAiConversation, draftAiTask, sendAiMessage } from "./actions";
+import { hasAiPricingConfigured } from "@/lib/ai/openai";
+import { cancelAiTaskDraft, confirmAiTaskDraft, createAiConversation, draftAiTask, saveAiMonthlyBudget, sendAiMessage } from "./actions";
 
 type Membership = { organization_id: string; role: string; organizations: { name: string } | { name: string }[] | null };
 
-export default async function AiCommandCenterPage({ searchParams }: { searchParams: Promise<{ organization?: string; conversation?: string; error?: string; drafted?: string; cancelled?: string }> }) {
+export default async function AiCommandCenterPage({ searchParams }: { searchParams: Promise<{ organization?: string; conversation?: string; error?: string; drafted?: string; cancelled?: string; "budget-saved"?: string }> }) {
   const params = await searchParams;
+  const aiPricingConfigured = hasAiPricingConfigured();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -16,14 +18,17 @@ export default async function AiCommandCenterPage({ searchParams }: { searchPara
   if (!membership) redirect("/workspace");
   const organizationId = membership.organization_id;
   const organization = Array.isArray(membership.organizations) ? membership.organizations[0] : membership.organizations;
-  const [{ data: conversations }, { data: canUseAi }, { data: drafts }, { data: projects }, { data: teamRows }] = await Promise.all([
+  const [{ data: conversations }, { data: canUseAi }, { data: drafts }, { data: projects }, { data: teamRows }, { data: canManageBudget }] = await Promise.all([
     supabase.from("ai_conversations").select("id,title,updated_at").eq("organization_id", organizationId).eq("user_id", user.id).order("updated_at", { ascending: false }).limit(30),
     supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "workspace.write" }),
     supabase.from("ai_action_drafts").select("id,title,description,priority,suggested_due_date,model,usage,created_at,expires_at").eq("organization_id", organizationId).eq("user_id", user.id).eq("status", "pending").gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(10),
     supabase.from("projects").select("id,name").eq("organization_id", organizationId).not("status", "in", "(completed,on_hold)").order("name"),
     supabase.from("org_members").select("user_id,role").eq("organization_id", organizationId).eq("status", "active").neq("role", "client").order("created_at"),
+    supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "organization.manage" }),
   ]);
   if (!canUseAi) redirect(`/workspace?organization=${organizationId}`);
+  const { data: aiBudgetRows } = canManageBudget ? await supabase.rpc("ai_budget_status", { target_org: organizationId }) : { data: [] };
+  const aiBudget = aiBudgetRows?.[0] ?? null;
   const selected = conversations?.find((item) => item.id === params.conversation) ?? conversations?.[0] ?? null;
   const { data: teamProfiles } = teamRows?.length ? await supabase.from("profiles").select("id,full_name").in("id", teamRows.map((row) => row.user_id)) : { data: [] };
   const teamNames = new Map((teamProfiles ?? []).map((profile) => [profile.id, profile.full_name]));
@@ -37,6 +42,10 @@ export default async function AiCommandCenterPage({ searchParams }: { searchPara
     "draft-invalid": "The request or generated draft was invalid. Refine it and try again.",
     "draft-save": "The draft could not be saved. Please try again.",
     "draft-confirm": "That draft expired or could not be confirmed. Refresh and review the pending drafts.",
+    "budget-limit": "The AI request was blocked by the workspace monthly budget. Check the budget and token pricing with an organization administrator.",
+    "budget-invalid": "Enter a monthly budget from $0.01 to $10,000, or leave it blank for no limit.",
+    "budget-pricing": "Set valid input and output token prices in the server environment before enabling a monthly budget.",
+    "budget-save": "The monthly AI budget could not be saved. Check that you have organization management access.",
   };
 
   return <main className="app-shell">
@@ -46,6 +55,8 @@ export default async function AiCommandCenterPage({ searchParams }: { searchPara
     <section className="main-area"><header className="topbar"><div className="breadcrumbs"><span>{organization?.name ?? "Agency workspace"}</span><span className="slash">/</span><b>AI Command Center</b><span className="live-label">Workspace assistant</span></div><div className="top-actions"><span className="signed-in-as">{user.email}</span></div></header><div className="content-wrap ai-content-wrap">
       <section className="welcome-row"><div><div className="eyebrow">LET’S GO. AI</div><h1>AI Command Center</h1><p>Ask about clients, pipeline, delivery, tasks, and your content schedule.</p></div><form action={createAiConversation}><input type="hidden" name="organization_id" value={organizationId}/><button className="primary-button" type="submit"><Plus size={15}/>New conversation</button></form></section>
       {params.error && <div className="auth-error finance-message" role="alert">{errorText[params.error] ?? errorText.provider}</div>}{params.drafted && <div className="success-banner">AI task draft prepared. Review and confirm it below to create the task.</div>}{params.cancelled && <div className="success-banner">AI task draft discarded.</div>}
+      {params["budget-saved"] && <div className="success-banner">Monthly AI budget updated and recorded in audit history.</div>}
+      {canManageBudget && aiBudget && <section className="card finance-list-card ai-budget-card"><div className="leads-heading"><div><h2>Workspace AI budget</h2><p>{aiBudget.budget_usd === null ? "Priced requests recorded this UTC month." : "Priced usage since activation or UTC month start, whichever is later."} Requests reserve estimated cost before calling AI.</p></div><ShieldCheck size={16}/></div><div className="ai-budget-summary"><span><small>Estimated spent</small><b>{aiPricingConfigured ? `$${Number(aiBudget.spent_usd).toFixed(4)}` : "Pricing not set"}</b></span><span><small>In-flight reservations</small><b>{aiPricingConfigured ? `$${Number(aiBudget.reserved_usd).toFixed(4)}` : "Pricing not set"}</b></span><span><small>Monthly cap</small><b>{aiBudget.budget_usd === null ? "No cap" : `$${Number(aiBudget.budget_usd).toFixed(2)}`}</b></span></div><form action={saveAiMonthlyBudget} className="ai-budget-form"><input type="hidden" name="organization_id" value={organizationId}/><label>Set monthly limit in USD<input name="budget_usd" type="number" min="0.01" max="10000" step="0.01" defaultValue={aiBudget.budget_usd ?? ""} placeholder="Blank means no limit"/></label><button className="primary-button" type="submit">Save budget</button><small>{aiPricingConfigured ? "Only usage after the cap is enabled counts toward it; earlier unpriced usage isn’t retroactively counted." : "Configure both server-side OpenAI token prices to enable a budget cap. Usage is estimated from token counts."}</small></form></section>}
       <div className="integration-note ai-privacy-note"><Bot size={18}/><span><b>Private to your account and workspace.</b> The assistant reads tenant-scoped records allowed to your role. Finance data is included only for users with finance access. Replies and token usage are saved for your account; provider requests use response storage disabled. AI can prepare a task draft, but it cannot create or change a record until you review and explicitly confirm it.</span></div>
       <section className="card ai-task-drafter"><div className="leads-heading"><div><h2>Draft a task with AI</h2><p>Describe the work. AI returns an editable proposal, not a saved task.</p></div><ShieldCheck size={16}/></div><form action={draftAiTask} className="ai-task-draft-form"><input type="hidden" name="organization_id" value={organizationId}/><textarea name="task_request" required minLength={3} maxLength={2000} rows={3} placeholder="Example: Prepare the first draft of Samprati Studio’s October content calendar and send it for review."/><div><small>10 AI requests per minute · Due dates are left blank unless explicitly provided</small><button className="primary-button" type="submit"><Bot size={14}/>Draft task</button></div></form></section>
       {drafts?.length ? <section className="ai-draft-review-section"><div className="leads-heading"><div><h2>Review pending drafts</h2><p>Only confirmed drafts become tasks. Drafts expire after 24 hours.</p></div></div>{drafts.map((draft) => <article className="card ai-draft-review-card" key={draft.id}><form action={confirmAiTaskDraft} className="ai-draft-review-form"><input type="hidden" name="organization_id" value={organizationId}/><input type="hidden" name="draft_id" value={draft.id}/><label>Task title<input name="title" required minLength={2} maxLength={200} defaultValue={draft.title}/></label><label>Description<textarea name="description" rows={3} maxLength={5000} defaultValue={draft.description}/></label><div className="ai-draft-field-grid"><label>Priority<select name="priority" defaultValue={draft.priority}>{["low", "medium", "high", "urgent"].map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></label><label>Due date<input name="due_date" type="date" defaultValue={draft.suggested_due_date ?? ""}/></label><label>Project<select name="project_id" defaultValue=""><option value="">No project</option>{projects?.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label><label>Assignee<select name="assignee_id" defaultValue=""><option value="">Unassigned</option>{teamRows?.map((member) => <option key={member.user_id} value={member.user_id}>{teamNames.get(member.user_id) || member.role}</option>)}</select></label></div><div className="ai-draft-review-footer"><small>Generated by {draft.model ?? "AI"} · expires {new Date(draft.expires_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</small><div><button className="quiet-button" type="submit" formAction={cancelAiTaskDraft} formNoValidate>Discard</button><button className="primary-button" type="submit">Confirm and create task</button></div></div></form></article>)}</section> : null}

@@ -1,5 +1,5 @@
 // Schema snapshot based on the checked-in migrations. Regenerate from the local
-// Supabase database with `pnpm db:types` after applying migrations 001-023.
+// Supabase database with `pnpm db:types` after applying migrations 001-024.
 // Relationship metadata mirrors the migration foreign keys until the local
 // Supabase project is available for CLI generation.
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -15,7 +15,7 @@ type Table<Row, Relations extends Relationship[] = []> = {
 export type Database = {
   public: {
     Tables: {
-      organizations: Table<{ id: string; name: string; slug: string; legal_name: string | null; timezone: string; currency: string; status: Database["public"]["Enums"]["record_status"]; created_at: string; updated_at: string }>;
+      organizations: Table<{ id: string; name: string; slug: string; legal_name: string | null; timezone: string; currency: string; status: Database["public"]["Enums"]["record_status"]; ai_monthly_budget_usd: number | null; ai_budget_started_at: string | null; created_at: string; updated_at: string }>;
       profiles: Table<{ id: string; full_name: string; avatar_url: string | null; phone: string | null; created_at: string; updated_at: string }>;
       org_members: Table<{ organization_id: string; user_id: string; role: Database["public"]["Enums"]["member_role"]; title: string | null; status: "invited" | "active" | "suspended"; joined_at: string | null; created_at: string }, [{ foreignKeyName: "org_members_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] }] >;
       roles: Table<{ id: string; organization_id: string; name: string; is_system: boolean; permissions: Json; created_at: string }>;
@@ -44,6 +44,7 @@ export type Database = {
       ai_conversations: Table<{ id: string; organization_id: string; user_id: string; title: string; context: Json; created_at: string; updated_at: string }>;
       ai_messages: Table<{ id: string; organization_id: string; conversation_id: string; role: "user" | "assistant" | "tool"; content: string; model: string | null; usage: Json | null; created_at: string }>;
       ai_action_drafts: Table<{ id: string; organization_id: string; user_id: string; action_type: "create_task"; title: string; description: string; priority: "low" | "medium" | "high" | "urgent"; suggested_due_date: string | null; model: string | null; usage: Json | null; status: "pending" | "confirmed" | "cancelled"; task_id: string | null; expires_at: string; confirmed_at: string | null; created_at: string }, [{ foreignKeyName: "ai_action_drafts_task_id_fkey"; columns: ["task_id"]; isOneToOne: false; referencedRelation: "tasks"; referencedColumns: ["id"] }] >;
+      ai_usage_events: Table<{ id: string; organization_id: string; user_id: string; request_type: "assistant_reply" | "task_draft"; model: string; status: "reserved" | "completed" | "failed"; input_tokens: number; output_tokens: number; reserved_usd: number; actual_cost_usd: number | null; created_at: string; completed_at: string | null; expires_at: string }, [{ foreignKeyName: "ai_usage_events_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] }] >;
       audit_logs: Table<{ id: number; organization_id: string; actor_id: string | null; action: string; entity_type: string; entity_id: string | null; changes: Json; request_id: string | null; created_at: string }>;
       invoice_payments: Table<{ id: string; organization_id: string; invoice_id: string; amount: number; currency: string; paid_at: string; method: "bank_transfer" | "cash" | "card" | "cheque" | "other"; provider_reference: string | null; recorded_by: string | null; created_at: string }>;
       org_invitations: Table<{ id: string; organization_id: string; email: string; user_id: string; role: "admin" | "manager" | "member"; status: "pending" | "accepted" | "revoked"; invited_by: string; created_at: string; accepted_at: string | null }>;
@@ -62,6 +63,11 @@ export type Database = {
       report_team_workload: { Args: { target_org: string }; Returns: { member_id: string; full_name: string; open_tasks: number; blocked_tasks: number; overdue_tasks: number }[] };
       confirm_ai_task_draft: { Args: { target_org: string; draft_id: string; final_title: string; final_description?: string | null; final_priority?: string | null; final_due_date?: string | null; selected_project?: string | null; selected_assignee?: string | null }; Returns: string };
       cancel_ai_task_draft: { Args: { target_org: string; draft_id: string }; Returns: boolean };
+      reserve_ai_budget: { Args: { target_org: string; target_user: string; request_id: string; request_type: string; request_model: string; estimated_cost_usd: number | null }; Returns: boolean };
+      settle_ai_budget: { Args: { request_id: string; target_user: string; input_count: number; output_count: number; actual_cost: number | null }; Returns: boolean };
+      release_ai_budget: { Args: { request_id: string; target_user: string }; Returns: boolean };
+      set_org_ai_monthly_budget: { Args: { target_org: string; budget_usd: number | null }; Returns: boolean };
+      ai_budget_status: { Args: { target_org: string }; Returns: { budget_usd: number | null; spent_usd: number; reserved_usd: number }[] };
       accept_org_invitation: { Args: { target_org: string }; Returns: boolean };
       manage_org_member: { Args: { target_org: string; target_user: string; new_role: Database["public"]["Enums"]["member_role"]; new_status: string }; Returns: boolean };
       revoke_org_invitation: { Args: { target_org: string; invitation_id: string }; Returns: boolean };

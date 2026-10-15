@@ -51,7 +51,7 @@ Organization id har URL mein `?organization=<org-id>` se select hoti hai. Signed
 | 10 | Team | `/workspace/team` | Members, access, invites, and task workload. Open a member for assigned-task detail and permission-gated monthly performance check-ins. Role/permission editor: `/workspace/team/roles`. |
 | 11 | Automations | `/workspace/automations` | Task automation rules, schedule aur run history. |
 | 12 | Integrations | `/workspace/integrations` | Connected provider status aur integration setup. |
-| 13 | AI Command Center | `/workspace/ai` | Organization context ke read-only Q&A ke alawa task ka editable draft banayein; review karke **Confirm and create task** dabane ke baad hi task save hota hai. |
+| 13 | AI Command Center | `/workspace/ai` | Organization context ke read-only Q&A ke alawa task ka editable draft banayein; review karke **Confirm and create task** dabane ke baad hi task save hota hai. Owner/admin isi page par monthly USD budget aur estimated use dekh sakte hain; model token prices pehle configure karein. |
 | 14 | Files | `/workspace/files` | Organization-scoped private file library. |
 | 15 | Audit history | `/workspace/audit` | Kisne kya action kiya, entity aur time ke saath. |
 
