@@ -64,7 +64,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
     </aside>
     <section className="main-area">
       <header className="topbar"><div className="breadcrumbs"><span>{organization?.name ?? "Agency workspace"}</span><span className="slash">/</span><b>Finance</b><span className="live-label">Live workspace</span></div><div className="top-actions"><span className="signed-in-as">{user.email}</span></div></header>
-      <div className="content-wrap">
+      <div id="main-content" tabIndex={-1} className="content-wrap">
         <section className="welcome-row"><div><div className="eyebrow">FINANCE WORKSPACE</div><h1>Finance</h1><p>Track invoices, incoming payments, outstanding balances, and expenses.</p></div></section>
         {params.error && <div className="auth-error finance-message" role="alert">{messages[params.error] ?? messages.save}</div>}
         {params.created && <div className="success-banner finance-message">{createdLabels[params.created] ?? "Finance record saved."}</div>}

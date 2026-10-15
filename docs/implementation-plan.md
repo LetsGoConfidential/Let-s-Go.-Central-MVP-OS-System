@@ -83,6 +83,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Organization owner/admin monthly USD cap with service-role-only serialized reservations, token-use settlement, permission-gated configuration, and audit trail.
 - Automatic price catalog updates and invoice-grade provider reconciliation remain future work; maintain the configured model rates manually.
 - Error monitoring, rate limiting beyond AI request claims, export/delete, backups, accessibility review, and tenant isolation review.
+- [x] Add global keyboard-focus visibility, a skip-to-main-content link, and reduced-motion support as accessibility foundations; a complete WCAG review remains a release gate.
 - Acceptance: AI cannot retrieve cross-tenant records; tool writes require explicit user confirmation and are auditable.
 
 ## MVP release gates

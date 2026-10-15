@@ -25,7 +25,7 @@ The screens are **visual examples with illustrative data**. They help review inf
 | Files | `/workspace/files` | Private tenant library, permission checks, signed links, upload/delete actions. | Storage setup and live-environment verification. |
 | Audit | `/workspace/audit` | Organization-scoped activity with action/entity/date filters. | Tenant isolation and production behavior still need verification. |
 
-The code is present for the “implemented” behaviors above, but the local database migrations and security acceptance checks have not been completed in this environment. New team performance reviews are restricted by `team.performance.manage`; manager notes are excluded from the tenant-wide audit feed. Treat **implemented in code** and **verified for production** as separate states.
+The code is present for the “implemented” behaviors above, but the local database migrations and security acceptance checks have not been completed in this environment. The shared app now has keyboard-visible focus, a skip-to-content link, and reduced-motion support; this is an accessibility foundation, not a complete WCAG review. New team performance reviews are restricted by `team.performance.manage`; manager notes are excluded from the tenant-wide audit feed. Treat **implemented in code** and **verified for production** as separate states.
 
 ## To review real application routes
 
