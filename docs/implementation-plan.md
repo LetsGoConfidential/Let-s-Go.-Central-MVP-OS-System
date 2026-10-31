@@ -82,7 +82,8 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Optional per-response AI cost estimate from operator-configured input/output token prices for the selected model.
 - [x] Organization owner/admin monthly USD cap with service-role-only serialized reservations, token-use settlement, permission-gated configuration, and audit trail.
 - Automatic price catalog updates and invoice-grade provider reconciliation remain future work; maintain the configured model rates manually.
-- Error monitoring, rate limiting beyond AI request claims, export/delete, backups, accessibility review, and tenant isolation review.
+- [x] Organization-manager JSON export with RLS-scoped data, a recorded audit event, explicit sensitive-data exclusions, and bounded download size.
+- Error monitoring, rate limiting beyond AI request claims, tenant deletion, backups, a complete accessibility review, and tenant isolation review.
 - [x] Add global keyboard-focus visibility, a skip-to-main-content link, and reduced-motion support as accessibility foundations; a complete WCAG review remains a release gate.
 - Acceptance: AI cannot retrieve cross-tenant records; tool writes require explicit user confirmation and are auditable.
 
@@ -96,4 +97,4 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 
 ## Immediate next implementation slice
 
-Apply migrations 001-024 and provision the founder account as owner of `lets-go-digitals`, then verify the tenant and role policies. Regenerate database types from local Supabase. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.
+Apply migrations 001-025 and provision the founder account as owner of `lets-go-digitals`, then verify the tenant and role policies. Regenerate database types from local Supabase. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.

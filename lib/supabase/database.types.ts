@@ -1,5 +1,5 @@
 // Schema snapshot based on the checked-in migrations. Regenerate from the local
-// Supabase database with `pnpm db:types` after applying migrations 001-024.
+// Supabase database with `pnpm db:types` after applying migrations 001-025.
 // Relationship metadata mirrors the migration foreign keys until the local
 // Supabase project is available for CLI generation.
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
@@ -68,6 +68,7 @@ export type Database = {
       release_ai_budget: { Args: { request_id: string; target_user: string }; Returns: boolean };
       set_org_ai_monthly_budget: { Args: { target_org: string; budget_usd: number | null }; Returns: boolean };
       ai_budget_status: { Args: { target_org: string }; Returns: { budget_usd: number | null; spent_usd: number; reserved_usd: number }[] };
+      log_organization_data_export: { Args: { target_org: string }; Returns: boolean };
       accept_org_invitation: { Args: { target_org: string }; Returns: boolean };
       manage_org_member: { Args: { target_org: string; target_user: string; new_role: Database["public"]["Enums"]["member_role"]; new_status: string }; Returns: boolean };
       revoke_org_invitation: { Args: { target_org: string; invitation_id: string }; Returns: boolean };
