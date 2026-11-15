@@ -16,10 +16,10 @@ Let’s Go Central is an agency operating system for sales, client management, p
 2. Run `pnpm install`.
 3. Copy `.env.example` to `.env.local` and add the Supabase project URL and publishable key.
 4. Run `pnpm dlx supabase start` for local services.
-5. Run `pnpm dlx supabase db reset` to apply migrations 001-025 and insert the Let’s Go Digitals starter tenant.
+5. Run `pnpm dlx supabase db reset` to apply migrations 001-026 and insert the Let’s Go Digitals starter tenant.
 6. Run `pnpm dev` and open `http://localhost:3000`.
 
-After applying migrations, refresh the checked-in database type snapshot with `pnpm db:types`. This command uses the Supabase CLI and the local database schema; the committed snapshot is currently kept in sync with migrations 001-025 until a local database is available for CLI generation.
+After applying migrations, refresh the checked-in database type snapshot with `pnpm db:types`. This command uses the Supabase CLI and the local database schema; the committed snapshot is currently kept in sync with migrations 001-026 until a local database is available for CLI generation.
 
 The root route (`/`) is a Figma-inspired illustrative preview. After configuring Supabase and linking the founder account to the seeded tenant (or creating a workspace through `/workspace` onboarding), the dashboard shows live organization-scoped counts and audit activity. The workspace picker only lists active memberships. Never expose a service-role key in the browser.
 
@@ -41,6 +41,8 @@ on conflict (organization_id, user_id) do update set role = 'owner', status = 'a
 ```
 
 Organization owners and admins can download a tenant-scoped JSON export from **Workspace → Audit history → Export workspace data**. Export requests are audited. Provider credentials, private member AI conversations/drafts, Auth credentials, internal AI cost ledger rows, and file contents are excluded; file metadata and integration connection metadata are included. The current synchronous download limits are 25,000 rows and 25 MB.
+
+Organization owners and admins can edit the workspace name, legal name, IANA timezone, and default currency from **Team → Workspace settings**. Changes are audited. Timezone changes affect date/time displays and date-based planning. Leads, deals, and project budgets do not store individual currency codes, so changing the organization currency changes the labels shown for those existing amounts; no amounts are converted. Invoices and expenses keep their own currency. Supported currencies are AED, AUD, CAD, CHF, CNY, EUR, GBP, INR, JPY, NZD, SGD, and USD.
 
 ## Project map
 

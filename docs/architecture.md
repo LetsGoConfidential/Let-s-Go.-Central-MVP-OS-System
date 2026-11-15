@@ -81,6 +81,7 @@ Custom roles can currently grant only `workspace.write` and `finance.manage`. Or
 - Keep audit rows append-only and avoid storing secrets or unnecessarily sensitive personal information in change payloads.
 - Use organization ID in cache keys, background-job payloads, storage paths, and AI retrieval filters.
 - Organization managers can request an audited tenant JSON export. Provider credentials, private member AI history, Auth credentials, internal AI cost rows, and file contents are excluded. Tenant deletion, backups, and retention rules still need definition before onboarding external tenants.
+- Workspace managers can update the organization display/legal name and IANA timezone/default currency through a permission-checked RPC. Currency changes affect labels for leads, deals, and project budgets because those amount columns do not store a currency; invoices and expenses retain their explicit currencies. No existing amounts are converted.
 
 ## Finance ledger behavior
 

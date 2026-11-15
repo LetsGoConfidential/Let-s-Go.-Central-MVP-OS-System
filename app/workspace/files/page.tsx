@@ -3,7 +3,7 @@ import { Activity, CalendarClock, FileText, FolderOpen, ListTodo, Users, WalletC
 import { createClient } from "@/lib/supabase/server";
 import { deleteOrganizationFile, uploadOrganizationFile } from "./actions";
 
-type Membership = { organization_id: string; role: string; organizations: { name: string } | { name: string }[] | null };
+type Membership = { organization_id: string; role: string; organizations: { name: string; timezone: string } | { name: string; timezone: string }[] | null };
 function fileSize(bytes: number) { return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 
 export default async function FilesPage({ searchParams }: { searchParams: Promise<{ organization?: string; error?: string; uploaded?: string; deleted?: string }> }) {
@@ -11,12 +11,13 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  const { data: membershipRows } = await supabase.from("org_members").select("organization_id,role,organizations(name)").eq("user_id", user.id).eq("status", "active");
+  const { data: membershipRows } = await supabase.from("org_members").select("organization_id,role,organizations(name,timezone)").eq("user_id", user.id).eq("status", "active");
   const memberships = (membershipRows ?? []) as unknown as Membership[];
   const membership = memberships.find((row) => row.organization_id === params.organization) ?? memberships[0];
   if (!membership) redirect("/workspace");
   const organizationId = membership.organization_id;
   const organization = Array.isArray(membership.organizations) ? membership.organizations[0] : membership.organizations;
+  const timezone = organization?.timezone || "Asia/Kolkata";
   const [{ data: records }, { data: canManage }] = await Promise.all([
     supabase.from("organization_files").select("id,storage_path,original_filename,mime_type,size_bytes,uploaded_by,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(100),
     supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "workspace.write" }),
@@ -43,7 +44,7 @@ export default async function FilesPage({ searchParams }: { searchParams: Promis
       {params.uploaded && <div className="success-banner finance-message">File added to this workspace.</div>}
       {params.deleted && <div className="success-banner finance-message">File removed from this workspace.</div>}
       {canManage && <section className="card file-upload-card"><div className="leads-heading"><div><h2>Add a file</h2><p>PDF, image, text, Word, Excel, or PowerPoint · up to 20 MB</p></div></div><form action={uploadOrganizationFile} className="file-upload-form" encType="multipart/form-data"><input type="hidden" name="organization_id" value={organizationId}/><input name="file" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.docx,.xlsx,.pptx" required/><button className="primary-button" type="submit">Upload file</button></form></section>}
-      <section className="card file-list-card"><div className="leads-heading"><div><h2>Workspace files</h2><p>{files.length} recent files · links expire after five minutes</p></div></div>{files.length ? <div className="table-scroll"><table className="lead-table"><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Added</th><th>Actions</th></tr></thead><tbody>{files.map((file) => <tr key={file.id}><td><b>{file.original_filename}</b></td><td>{file.mime_type}</td><td>{fileSize(Number(file.size_bytes))}</td><td>{new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "Asia/Kolkata" }).format(new Date(file.created_at))}</td><td className="file-actions">{file.signedUrl ? <a className="finance-action-button" href={file.signedUrl} target="_blank" rel="noreferrer">Open file</a> : <span>Unavailable</span>}{canManage && <form action={deleteOrganizationFile}><input type="hidden" name="organization_id" value={organizationId}/><input type="hidden" name="file_id" value={file.id}/><button className="finance-action-button file-delete-button" type="submit">Remove</button></form>}</td></tr>)}</tbody></table></div> : <div className="empty-state lead-empty"><b>No files yet</b><span>Upload a workspace document to make it available to your organization.</span></div>}</section>
+      <section className="card file-list-card"><div className="leads-heading"><div><h2>Workspace files</h2><p>{files.length} recent files · links expire after five minutes</p></div></div>{files.length ? <div className="table-scroll"><table className="lead-table"><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Added</th><th>Actions</th></tr></thead><tbody>{files.map((file) => <tr key={file.id}><td><b>{file.original_filename}</b></td><td>{file.mime_type}</td><td>{fileSize(Number(file.size_bytes))}</td><td>{new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: timezone }).format(new Date(file.created_at))}</td><td className="file-actions">{file.signedUrl ? <a className="finance-action-button" href={file.signedUrl} target="_blank" rel="noreferrer">Open file</a> : <span>Unavailable</span>}{canManage && <form action={deleteOrganizationFile}><input type="hidden" name="organization_id" value={organizationId}/><input type="hidden" name="file_id" value={file.id}/><button className="finance-action-button file-delete-button" type="submit">Remove</button></form>}</td></tr>)}</tbody></table></div> : <div className="empty-state lead-empty"><b>No files yet</b><span>Upload a workspace document to make it available to your organization.</span></div>}</section>
       <footer className="footer"><span>LET’S GO. CENTRAL OS</span><span>Files are private and accessible only to members of this organization.</span></footer>
     </div></section>
   </main>;

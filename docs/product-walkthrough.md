@@ -48,7 +48,7 @@ Organization id har URL mein `?organization=<org-id>` se select hoti hai. Signed
 | 8 | Content detail | `/workspace/content/<item-id>` | Calendar/pipeline item kholkar project, caption/copy, publish date aur review feedback manage karein. |
 | 9 | Finance | `/workspace/finance` | Invoices, payments, receivables aur expenses. |
 | 9a | Reports | `/workspace/reports?days=90` | Current lead outcomes/client health aur trailing-period task timeliness/team workload. Period tabs 30, 90, 365 din switch karte hain. |
-| 10 | Team | `/workspace/team` | Members, access, invites, and task workload. Open a member for assigned-task detail and permission-gated monthly performance check-ins. Role/permission editor: `/workspace/team/roles`. |
+| 10 | Team | `/workspace/team` | Members, access, invites, and task workload. Open a member for assigned-task detail and permission-gated monthly performance check-ins. Organization managers can open Workspace settings here; role/permission editor: `/workspace/team/roles`. |
 | 11 | Automations | `/workspace/automations` | Task automation rules, schedule aur run history. |
 | 12 | Integrations | `/workspace/integrations` | Connected provider status aur integration setup. |
 | 13 | AI Command Center | `/workspace/ai` | Organization context ke read-only Q&A ke alawa task ka editable draft banayein; review karke **Confirm and create task** dabane ke baad hi task save hota hai. Owner/admin isi page par monthly USD budget aur estimated use dekh sakte hain; model token prices pehle configure karein. |

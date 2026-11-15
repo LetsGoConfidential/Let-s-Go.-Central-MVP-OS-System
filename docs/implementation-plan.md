@@ -25,6 +25,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Invite new members by email, accept invitations against the authenticated email, revoke pending invitations, update roles, and suspend members.
 - [x] Custom role editor and assignment with workspace-write/finance permission keys.
 - [x] Owner transfer flow: current owner confirms the transfer; former owner becomes an admin.
+- [x] Owner/admin workspace settings for organization name, legal name, IANA timezone, and default currency with audited updates.
 - [x] Add a migration-backed TypeScript schema snapshot for all public tables, enums, and RPCs.
 - Regenerate the snapshot from local Supabase and wire typed clients/accessors after migrations are applied.
 - Acceptance: unauthenticated requests cannot read tenant data; a user in tenant A cannot list or mutate tenant B data, even by changing request parameters.
@@ -97,4 +98,4 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 
 ## Immediate next implementation slice
 
-Apply migrations 001-025 and provision the founder account as owner of `lets-go-digitals`, then verify the tenant and role policies. Regenerate database types from local Supabase. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.
+Apply migrations 001-026 and provision the founder account as owner of `lets-go-digitals`, then verify the tenant and role policies. Regenerate database types from local Supabase. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.

@@ -3,14 +3,12 @@ import { Plus, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { convertWonLead, createLead, updateLeadStage } from "./actions";
 
-type Membership = { organization_id: string; role: string; organizations: { name: string; slug: string } | { name: string; slug: string }[] | null };
+type Membership = { organization_id: string; role: string; organizations: { name: string; slug: string; currency: string } | { name: string; slug: string; currency: string }[] | null };
 
 function orgName(membership: Membership) {
   const relation = membership.organizations;
   return Array.isArray(relation) ? relation[0]?.name ?? "Agency workspace" : relation?.name ?? "Agency workspace";
 }
-
-const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
 export default async function SalesPage({ searchParams }: { searchParams: Promise<{ organization?: string; error?: string; created?: string; updated?: string; converted?: string; q?: string }> }) {
   const params = await searchParams;
@@ -18,10 +16,12 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: membershipRows } = await supabase.from("org_members").select("organization_id, role, organizations(name, slug)").eq("user_id", user.id).eq("status", "active");
+  const { data: membershipRows } = await supabase.from("org_members").select("organization_id, role, organizations(name, slug, currency)").eq("user_id", user.id).eq("status", "active");
   const memberships = (membershipRows ?? []) as unknown as Membership[];
   const membership = memberships.find((item) => item.organization_id === params.organization) ?? memberships[0];
   if (!membership) redirect("/workspace");
+  const organization = Array.isArray(membership.organizations) ? membership.organizations[0] : membership.organizations;
+  const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: organization?.currency?.trim() || "INR", maximumFractionDigits: 0 });
 
   let leadsQuery = supabase.from("leads").select("id, company_name, contact_name, source, stage, estimated_value, probability, next_action, converted_client_id, created_at").eq("organization_id", membership.organization_id).order("created_at", { ascending: false }).limit(100);
   const search = (params.q ?? "").trim().slice(0, 100);
