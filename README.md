@@ -16,10 +16,10 @@ Let’s Go Central is an agency operating system for sales, client management, p
 2. Run `pnpm install`.
 3. Copy `.env.example` to `.env.local` and add the Supabase project URL and publishable key.
 4. Run `pnpm dlx supabase start` for local services.
-5. Run `pnpm dlx supabase db reset` to apply migrations 001-026 and insert the Let’s Go Digitals starter tenant.
+5. Run `pnpm dlx supabase db reset` to apply migrations 001-027 and insert the Let’s Go Digitals starter tenant.
 6. Run `pnpm dev` and open `http://localhost:3000`.
 
-After applying migrations, refresh the checked-in database type snapshot with `pnpm db:types`. This command uses the Supabase CLI and the local database schema; the committed snapshot is currently kept in sync with migrations 001-026 until a local database is available for CLI generation.
+After applying migrations, refresh the checked-in database type snapshot with `pnpm db:types`. This command uses the Supabase CLI and the local database schema; the committed snapshot is currently kept in sync with migrations 001-027 until a local database is available for CLI generation.
 
 The root route (`/`) is a Figma-inspired illustrative preview. After configuring Supabase and linking the founder account to the seeded tenant (or creating a workspace through `/workspace` onboarding), the dashboard shows live organization-scoped counts and audit activity. The workspace picker only lists active memberships. Never expose a service-role key in the browser.
 
@@ -29,7 +29,7 @@ To connect Slack, create a Slack app, enable OAuth, and register `{NEXT_PUBLIC_S
 
 To use the AI Command Center, configure server-only `OPENAI_API_KEY` and `OPENAI_MODEL` values for a model available to your API project. The assistant receives a limited snapshot of the active organization and recent workflow records. Finance totals are added only for members with `finance.manage`. It can prepare an editable task proposal, but a workspace member must explicitly confirm the task before the database transaction creates it; the confirmed write is audited. Conversation replies and token counts are stored in the workspace, while OpenAI response storage is disabled for requests. Each member can make up to 10 AI requests per minute. Set `OPENAI_INPUT_USD_PER_1M_TOKENS` and `OPENAI_OUTPUT_USD_PER_1M_TOKENS` to current prices for the configured model to show estimated request costs and enable an organization budget cap. Organization owners/admins can set the monthly USD cap in the AI Command Center; each request reserves an estimated amount first and records token-based cost afterward. A cap starts when enabled and resets at the next UTC month boundary; earlier unpriced usage is not retroactively counted. This is a conservative estimate, not a billing reconciliation: keep model prices current, and reconcile against provider invoices before using it for billing decisions.
 
-Scheduled automations and queued new-lead events use the shared worker endpoint `POST /api/automation/worker`. Set a server-only `AUTOMATION_WORKER_SECRET` with at least 32 characters, then configure your hosting scheduler to send `Authorization: Bearer <secret>` at least every 15 minutes. The worker processes up to 20 due jobs per call; schedule rules can run hourly, daily, or weekly. New-lead rules queue one task per enabled rule and lead, with `{{company_name}}` available in the task title and description. Manual task runs do not depend on the scheduler.
+Scheduled automations and queued new-lead events use the shared worker endpoint `POST /api/automation/worker`. Set a server-only `AUTOMATION_WORKER_SECRET` with at least 32 characters, then configure your hosting scheduler to send `Authorization: Bearer <secret>` at least every 15 minutes. The worker processes up to 20 due jobs per call; schedule rules can run hourly, daily, or weekly. New-lead rules queue one task per enabled rule and lead, with `{{company_name}}` available in the task title and description. Failed attempts are retained and re-queued until the run's maximum attempt count, then left failed for review. Manual task runs do not depend on the scheduler.
 
 To link the first founder account to the seeded Let’s Go Digitals workspace, create the account through Supabase Auth, then run this once in the Supabase SQL editor with that account's UUID (from Authentication → Users):
 

@@ -69,7 +69,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Private tenant file library with organization-prefixed storage paths, permission-checked upload/delete, and expiring signed links.
 - [x] Tenant-scoped integration registry with credential-safe writes; connected state remains unavailable until provider OAuth is configured.
 - [x] Manual task automation builder with paused-by-default rules, idempotency, per-attempt actor/result records, retry limits, and pause controls.
-- [x] Hourly, daily, and weekly task schedules with a service-role-only Postgres worker, bounded batches, idempotent runs, and a bearer-secret-protected endpoint.
+- [x] Hourly, daily, and weekly task schedules with a service-role-only Postgres worker, bounded batches, idempotent runs, bounded retry attempts, and a bearer-secret-protected endpoint.
 - [x] New-lead event trigger queues one idempotent task run per enabled rule, with optional company-name task title tokens.
 - [x] Slack OAuth callback with signed state, server-side AES-GCM encrypted credentials, and refresh-token rotation support.
 - [x] Send a Slack message from the connected workspace to a channel where the bot is a member.
