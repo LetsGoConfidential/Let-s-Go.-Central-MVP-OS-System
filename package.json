@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "preflight": "node scripts/preflight.mjs",
     "db:types": "supabase gen types typescript --local --schema public > lib/supabase/database.types.ts"
   },
   "dependencies": {

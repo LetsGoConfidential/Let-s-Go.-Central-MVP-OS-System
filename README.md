@@ -19,6 +19,8 @@ Let’s Go Central is an agency operating system for sales, client management, p
 5. Run `pnpm dlx supabase db reset` to apply migrations 001-027 and insert the Let’s Go Digitals starter tenant.
 6. Run `pnpm dev` and open `http://localhost:3000`.
 
+Run `pnpm preflight` before starting local services to check required environment values, migration ordering, Node.js, Supabase CLI, and Docker. It reports variable names and setup status only; it never prints secret values. Slack and AI values remain optional unless you enable those integrations.
+
 After applying migrations, refresh the checked-in database type snapshot with `pnpm db:types`. This command uses the Supabase CLI and the local database schema; the committed snapshot is currently kept in sync with migrations 001-027 until a local database is available for CLI generation.
 
 The root route (`/`) is a Figma-inspired illustrative preview. After configuring Supabase and linking the founder account to the seeded tenant (or creating a workspace through `/workspace` onboarding), the dashboard shows live organization-scoped counts and audit activity. The workspace picker only lists active memberships. Never expose a service-role key in the browser.
