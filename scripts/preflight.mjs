@@ -42,7 +42,10 @@ function validUrl(name) {
   if (!usable(name)) return false;
   try {
     const url = new URL(values.get(name));
-    return ["http:", "https:"].includes(url.protocol) && Boolean(url.hostname);
+    return ["http:", "https:"].includes(url.protocol)
+      && Boolean(url.hostname)
+      && !placeholderPattern.test(url.hostname)
+      && !url.hostname.includes("your-project");
   } catch {
     return false;
   }
