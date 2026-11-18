@@ -16,6 +16,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Add the authenticated founder workspace with tenant-scoped client, lead, project, task, review, and audit counts.
 - [ ] Apply the migration locally and inspect Supabase policy behavior.
 - [ ] Create local auth account and attach it as owner of the seeded tenant.
+- [x] Add repeatable pgTAP checks for cross-tenant reads/writes and member write restrictions, plus a GitHub Actions database verification job.
 
 ## Phase 1 — secure product access
 

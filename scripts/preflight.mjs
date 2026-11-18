@@ -92,6 +92,9 @@ const migrationNumbers = migrations.map((name) => Number(name.slice(8, 12)));
 const expectedCount = 27;
 const sequential = migrationNumbers.length === expectedCount && migrationNumbers.every((value, index) => value === migrationNumbers[0] + index);
 report("database migrations", sequential, sequential ? `${migrations.length} ordered files found` : `expected ${expectedCount} sequential files, found ${migrations.length}`);
+report("tenant isolation pgTAP suite", existsSync(resolve(root, "supabase", "tests", "tenant_isolation_test.sql")), "cross-tenant and read-only role checks");
+const packageJson = JSON.parse(readFileSync(resolve(root, "package.json"), "utf8"));
+report("database test command", packageJson.scripts?.["db:test"] === "supabase test db", "pnpm db:test");
 
 const nodeMajor = Number(process.versions.node.split(".")[0]);
 report("Node.js version", nodeMajor >= 20, `${process.versions.node} (20 or newer required)`);

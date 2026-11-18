@@ -21,6 +21,8 @@ Let’s Go Central is an agency operating system for sales, client management, p
 
 Run `pnpm preflight` before starting local services to check required environment values, migration ordering, Node.js, Supabase CLI, and Docker. It reports variable names and setup status only; it never prints secret values. Slack and AI values remain optional unless you enable those integrations.
 
+To run the PostgreSQL row-level-security checks locally, start Supabase and run `pnpm db:test`. GitHub Actions runs the database migrations, seed, and pgTAP suite on pushes to `main` and pull requests targeting `main`.
+
 After applying migrations, refresh the checked-in database type snapshot with `pnpm db:types`. This command uses the Supabase CLI and the local database schema; the committed snapshot is currently kept in sync with migrations 001-027 until a local database is available for CLI generation.
 
 The root route (`/`) is a Figma-inspired illustrative preview. After configuring Supabase and linking the founder account to the seeded tenant (or creating a workspace through `/workspace` onboarding), the dashboard shows live organization-scoped counts and audit activity. The workspace picker only lists active memberships. Never expose a service-role key in the browser.
