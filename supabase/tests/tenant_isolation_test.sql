@@ -162,7 +162,7 @@ select results_eq(
 
 select results_eq(
   $$select name::text from public.deals where name like 'RLS fixture%' order by name$$,
-  $$values ('RLS fixture converted lead'::text)$$,
+  $$values ('RLS fixture converted lead — New business'::text)$$,
   'Read-only member can read Tenant A deals but not Tenant B deals'
 );
 
