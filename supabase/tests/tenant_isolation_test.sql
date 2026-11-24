@@ -1,6 +1,6 @@
 begin;
 
-select plan(33);
+select plan(35);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -8,7 +8,8 @@ insert into auth.users (
 ) values
   ('10000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'rls-owner@example.test', '', now(), '{}', '{}', now(), now()),
   ('10000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'rls-member@example.test', '', now(), '{}', '{}', now(), now()),
-  ('10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'rls-manager@example.test', '', now(), '{}', '{}', now(), now());
+  ('10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'rls-manager@example.test', '', now(), '{}', '{}', now(), now()),
+  ('10000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'rls-tenant-b-member@example.test', '', now(), '{}', '{}', now(), now());
 
 insert into public.organizations (id, name, slug)
 values
@@ -19,7 +20,8 @@ insert into public.org_members (organization_id, user_id, role, status, joined_a
 values
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'owner', 'active', now()),
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'member', 'active', now()),
-  ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 'manager', 'active', now());
+  ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 'manager', 'active', now()),
+  ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'member', 'active', now());
 
 insert into public.clients (id, organization_id, name)
 values
@@ -199,6 +201,18 @@ select throws_ok(
   $$insert into public.tasks (organization_id, project_id, title) values ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000002', 'RLS fixture cross-tenant task') returning id$$,
   '23503', null,
   'Task cannot link a project from another tenant'
+);
+
+select throws_ok(
+  $$insert into public.tasks (organization_id, project_id, client_id, title) values ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', 'RLS fixture cross-tenant task client') returning id$$,
+  '23503', null,
+  'Task cannot link a client from another tenant'
+);
+
+select throws_ok(
+  $$insert into public.tasks (organization_id, project_id, assignee_id, title) values ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000004', 'RLS fixture cross-tenant assignee') returning id$$,
+  '23514', 'Task assignee must be an active internal member of the same organization',
+  'Tenant A task cannot be assigned to an active member of Tenant B'
 );
 
 select throws_ok(
