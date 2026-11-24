@@ -1,6 +1,6 @@
 begin;
 
-select plan(42);
+select plan(47);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -32,6 +32,9 @@ insert into public.contacts (organization_id, client_id, first_name, last_name)
 values
   ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'Asha', 'Tenant A'),
   ('20000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'Bina', 'Tenant B');
+
+insert into public.invoices (organization_id, client_id, invoice_number, currency, subtotal)
+values ('20000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS-INVOICE-TENANT-B', 'INR', 1000);
 
 insert into public.projects (id, organization_id, client_id, name)
 values
@@ -77,6 +80,18 @@ select results_eq(
   $$select name::text from public.deals where name like 'RLS fixture%' order by name$$,
   $$select null::text where false$$,
   'Tenant A owner cannot read Tenant B deals'
+);
+
+select results_eq(
+  $$select invoice_number::text from public.invoices where invoice_number = 'RLS-INVOICE-TENANT-B'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B invoices'
+);
+
+select throws_ok(
+  $$insert into public.invoices (organization_id, client_id, invoice_number) values ('20000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS-INVOICE-FORGED') returning id$$,
+  '42501', null,
+  'Tenant A owner cannot create an invoice in Tenant B'
 );
 
 select throws_ok(
@@ -210,6 +225,12 @@ select throws_ok(
   'Read-only member cannot create a contact'
 );
 
+select throws_ok(
+  $$insert into public.invoices (organization_id, client_id, invoice_number) values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS-INVOICE-MEMBER') returning id$$,
+  '42501', null,
+  'Read-only member cannot create an invoice in their tenant'
+);
+
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select results_eq(
@@ -295,6 +316,18 @@ select throws_ok(
   $$insert into public.roles (organization_id, name) values ('20000000-0000-4000-8000-000000000001', 'RLS fixture manager role') returning id$$,
   '42501', null,
   'Manager without organization.manage cannot create a role'
+);
+
+select results_eq(
+  $$select invoice_number::text from public.invoices where invoice_number = 'RLS-INVOICE-TENANT-B'$$,
+  $$select null::text where false$$,
+  'Manager cannot read Tenant B financial records'
+);
+
+select throws_ok(
+  $$insert into public.invoices (organization_id, client_id, invoice_number) values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS-INVOICE-MANAGER') returning id$$,
+  '42501', null,
+  'Manager without finance.manage cannot create an invoice'
 );
 
 select results_eq(
