@@ -1,6 +1,6 @@
 begin;
 
-select plan(24);
+select plan(25);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -157,6 +157,12 @@ select throws_ok(
   $$insert into public.content_items (organization_id, client_id, project_id, title) values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000001', 'RLS fixture cross-tenant content') returning id$$,
   '23503', null,
   'Content cannot link a client from another tenant'
+);
+
+select throws_ok(
+  $$insert into public.content_items (organization_id, client_id, project_id, title) values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000002', 'RLS fixture cross-tenant content project') returning id$$,
+  '23503', null,
+  'Content cannot link a project from another tenant'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
