@@ -35,7 +35,7 @@ The code is present for the “implemented” behaviors above, but the local dat
 3. Use the live workspace sidebar, or append `?organization=<organization-id>` to module URLs.
 4. Review the **coded route** for actual page behavior. Use the HTML concept to compare a proposed visual direction, not as evidence that a feature is live.
 
-Current local checkout has no `.env.local` or installed `node_modules`; a live authenticated preview needs those setup steps first.
+The authenticated preview needs `.env.local` values plus a running Supabase project with migrations applied. Run `pnpm preflight` to see which local prerequisites are missing before signing in. The static concept can be reviewed without these services, but its sample records do not represent live tenant data.
 
 ## Review notes template
 

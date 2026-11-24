@@ -19,14 +19,14 @@ For the accurate screen-by-screen code status and review-notes template, open th
 Yeh repo ek Next.js app hai. Pehli baar local preview chalane ke liye:
 
 1. Project folder terminal mein kholen: `C:\Users\jankhan patel\Documents\Codex\2026-09-30\build-let-s-go-central-mvp`.
-2. Dependencies install karein: `pnpm install`.
+2. Agar dependencies install nahi hain, `pnpm install` chalayein.
 3. `.env.example` ko `.env.local` mein copy karein aur Supabase URL + publishable key set karein.
 4. Local Supabase start aur seed karein: `pnpm dlx supabase start`, phir `pnpm dlx supabase db reset`.
 5. Founder account create karke usko `lets-go-digitals` tenant ka owner banayein. SQL snippet ke liye [README setup](../README.md#to-link-the-first-founder-account-to-the-seeded-lets-go-digitals-workspace) dekhein.
 6. App start karein: `pnpm dev`.
 7. Browser mein `http://localhost:3000` kholen.
 
-Is workspace mein abhi `.env.local` aur installed `node_modules` maujood nahi the, isliye is turn mein live local server nahi dikhaya ja saka. Root page Figma-inspired illustrative preview hai; real tenant data ke liye Supabase setup aur sign-in zaroori hain.
+`pnpm preflight` local setup ki exact kamiyaan batata hai. Is environment mein valid `.env.local`, Supabase CLI, aur Docker abhi configured nahi hain, isliye authenticated tenant screens aur database-backed workflows load nahi ho sakte. Root page Figma-inspired illustrative preview hai; real tenant data ke liye Supabase setup aur sign-in zaroori hain.
 
 Sign in ke baad agar account ka koi active organization nahi hai, `/workspace` par apni company ka workspace name set karke create karein. Aap owner banenge. Dashboard ke left workspace picker mein sirf aapki active memberships wale organizations dikhte hain. Seeded Let’s Go Digitals organization ko use karne ke liye pehle [README ke founder setup steps](../README.md#to-link-the-first-founder-account-to-the-seeded-lets-go-digitals-workspace) follow karein.
 
