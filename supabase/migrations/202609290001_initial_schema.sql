@@ -401,10 +401,17 @@ revoke all on all tables in schema public from anon, authenticated;
 grant select, insert, update, delete on all tables in schema public to authenticated;
 grant usage, select on all sequences in schema public to authenticated;
 
+alter table public.organizations enable row level security;
+create policy tenant_read on public.organizations for select to authenticated
+  using (public.is_org_member(id));
+create policy tenant_write on public.organizations for all to authenticated
+  using (public.has_org_permission(id, 'organization.manage'))
+  with check (public.has_org_permission(id, 'organization.manage'));
+
 do $$
 declare table_name text;
 begin
-  foreach table_name in array array['organizations','org_members','roles','role_assignments','clients','contacts','leads','deals','projects','tasks','content_items','invoices','expenses','automation_rules','automation_runs','integrations','ai_conversations','ai_messages','audit_logs'] loop
+  foreach table_name in array array['org_members','roles','role_assignments','clients','contacts','leads','deals','projects','tasks','content_items','invoices','expenses','automation_rules','automation_runs','integrations','ai_conversations','ai_messages','audit_logs'] loop
     execute format('alter table public.%I enable row level security', table_name);
     execute format('create policy tenant_read on public.%I for select to authenticated using (public.is_org_member(organization_id))', table_name);
     if table_name in ('organizations','org_members','roles','role_assignments') then
