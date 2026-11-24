@@ -1,6 +1,6 @@
 begin;
 
-select plan(25);
+select plan(33);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -26,6 +26,11 @@ values
   ('40000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'RLS fixture tenant A'),
   ('40000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'RLS fixture tenant B');
 
+insert into public.contacts (organization_id, client_id, first_name, last_name)
+values
+  ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'Asha', 'Tenant A'),
+  ('20000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'Bina', 'Tenant B');
+
 insert into public.projects (id, organization_id, client_id, name)
 values
   ('50000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS fixture project A'),
@@ -38,11 +43,12 @@ insert into public.content_items (organization_id, client_id, project_id, title)
 values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 'RLS fixture content A');
 
 insert into public.leads (id, organization_id, company_name, contact_name, email, stage, estimated_value)
-values (
-  '30000000-0000-4000-8000-000000000001',
-  '20000000-0000-4000-8000-000000000001',
-  'RLS fixture converted lead', 'Meera Shah', 'meera@example.test', 'won', 25000
-);
+values
+  ('30000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'RLS fixture converted lead', 'Meera Shah', 'meera@example.test', 'won', 25000),
+  ('30000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'RLS fixture tenant B lead', 'Ravi Tenant', 'ravi@example.test', 'qualified', 10000);
+
+insert into public.deals (organization_id, lead_id, client_id, name, stage, value)
+values ('20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS fixture tenant B deal', 'qualified', 10000);
 
 set local role authenticated;
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
@@ -51,6 +57,24 @@ select results_eq(
   $$select name::text from public.clients where name like 'RLS fixture%' order by name$$,
   $$values ('RLS fixture tenant A'::text)$$,
   'Tenant A owner can read only Tenant A clients'
+);
+
+select results_eq(
+  $$select first_name::text from public.contacts where last_name like 'Tenant %' order by first_name$$,
+  $$values ('Asha'::text)$$,
+  'Tenant A owner can read only Tenant A contacts'
+);
+
+select results_eq(
+  $$select company_name::text from public.leads where company_name like 'RLS fixture%' order by company_name$$,
+  $$values ('RLS fixture converted lead'::text)$$,
+  'Tenant A owner can read only Tenant A leads'
+);
+
+select results_eq(
+  $$select name::text from public.deals where name like 'RLS fixture%' order by name$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B deals'
 );
 
 select throws_ok(
@@ -130,6 +154,30 @@ select results_eq(
   'Read-only member can read their tenant and still cannot see Tenant B'
 );
 
+select results_eq(
+  $$select company_name::text from public.leads where company_name like 'RLS fixture%' order by company_name$$,
+  $$values ('RLS fixture converted lead'::text)$$,
+  'Read-only member can read Tenant A leads but not Tenant B leads'
+);
+
+select results_eq(
+  $$select name::text from public.deals where name like 'RLS fixture%' order by name$$,
+  $$values ('RLS fixture converted lead'::text)$$,
+  'Read-only member can read Tenant A deals but not Tenant B deals'
+);
+
+select throws_ok(
+  $$insert into public.leads (organization_id, company_name) values ('20000000-0000-4000-8000-000000000001', 'RLS fixture member lead') returning id$$,
+  '42501', null,
+  'Read-only member cannot create a lead'
+);
+
+select throws_ok(
+  $$insert into public.contacts (organization_id, client_id, first_name) values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'Member') returning id$$,
+  '42501', null,
+  'Read-only member cannot create a contact'
+);
+
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select results_eq(
@@ -163,6 +211,12 @@ select throws_ok(
   $$insert into public.content_items (organization_id, client_id, project_id, title) values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000002', 'RLS fixture cross-tenant content project') returning id$$,
   '23503', null,
   'Content cannot link a project from another tenant'
+);
+
+select throws_ok(
+  $$insert into public.deals (organization_id, lead_id, client_id, name) values ('20000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000001', 'RLS fixture cross-tenant deal') returning id$$,
+  '23503', null,
+  'Deal cannot link a lead from another tenant'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
