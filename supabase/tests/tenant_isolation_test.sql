@@ -1,6 +1,6 @@
 begin;
 
-select plan(35);
+select plan(40);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -104,6 +104,24 @@ select results_eq(
 );
 
 select results_eq(
+  $$select id::text from public.profiles where id in ('10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000004') order by id$$,
+  $$values ('10000000-0000-4000-8000-000000000001'::text)$$,
+  'Tenant A owner cannot read a Tenant B user profile'
+);
+
+select results_eq(
+  $$select entity_id::text from public.audit_logs where entity_type = 'clients' and entity_id in ('40000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002') order by entity_id$$,
+  $$values ('40000000-0000-4000-8000-000000000001'::text)$$,
+  'Tenant A owner can read audit history only for Tenant A clients'
+);
+
+select throws_ok(
+  $$insert into public.audit_logs (organization_id, action, entity_type) values ('20000000-0000-4000-8000-000000000001', 'forged', 'clients') returning id$$,
+  '42501', null,
+  'Authenticated users cannot write audit records directly'
+);
+
+select results_eq(
   $$update public.organizations set name = 'RLS fixture changed across tenant' where slug = 'rls-test-tenant-b' returning id::text$$,
   $$select null::text where false$$,
   'Tenant A owner cannot update Tenant B organization settings'
@@ -160,6 +178,12 @@ select results_eq(
   $$select company_name::text from public.leads where company_name like 'RLS fixture%' order by company_name$$,
   $$values ('RLS fixture converted lead'::text)$$,
   'Read-only member can read Tenant A leads but not Tenant B leads'
+);
+
+select results_eq(
+  $$select id::text from public.profiles where id in ('10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004') order by id$$,
+  $$values ('10000000-0000-4000-8000-000000000002'::text)$$,
+  'Read-only member cannot read a Tenant B user profile'
 );
 
 select results_eq(
@@ -265,6 +289,12 @@ select results_eq(
   $$update public.organizations set name = 'RLS fixture manager update' where id = '20000000-0000-4000-8000-000000000001' returning id::text$$,
   $$select null::text where false$$,
   'Manager without organization.manage cannot update organization settings'
+);
+
+select results_eq(
+  $$update public.org_members set status = 'suspended' where organization_id = '20000000-0000-4000-8000-000000000001' and user_id = '10000000-0000-4000-8000-000000000002' returning user_id::text$$,
+  $$select null::text where false$$,
+  'Manager without organization.manage cannot suspend a workspace member'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
