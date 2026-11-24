@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Activity, BadgeIndianRupee, CalendarClock, Download, FileText, FolderOpen, ListTodo, Users, WalletCards } from "lucide-react";
+import { Activity, CalendarClock, Download, FileText, FolderOpen, ListTodo, Users, WalletCards } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 
 type Membership = { organization_id: string; role: string; organizations: { name: string; timezone: string } | { name: string; timezone: string }[] | null };

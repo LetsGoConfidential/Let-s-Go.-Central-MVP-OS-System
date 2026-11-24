@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isOneOf } from "@/lib/validation";
+
+const leadStages = ["new", "qualified", "proposal", "negotiation", "won", "lost"] as const;
 import { dateAtNineInZoneToIso } from "@/lib/dates";
 
 export async function createLead(formData: FormData) {
@@ -54,8 +57,7 @@ export async function updateLeadStage(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   const leadId = String(formData.get("lead_id") ?? "");
   const stage = String(formData.get("stage") ?? "");
-  const allowedStages = ["new", "qualified", "proposal", "negotiation", "won", "lost"];
-  if (!organizationId || !leadId || !allowedStages.includes(stage)) {
+  if (!organizationId || !leadId || !isOneOf(leadStages, stage)) {
     redirect(`/workspace/sales?organization=${encodeURIComponent(organizationId)}&error=invalid`);
   }
 

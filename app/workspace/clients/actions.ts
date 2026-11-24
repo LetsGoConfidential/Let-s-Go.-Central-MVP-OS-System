@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isOneOf } from "@/lib/validation";
+
+const clientHealthValues = ["healthy", "needs_attention", "at_risk", "churned"] as const;
 
 export async function createClientRecord(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
@@ -90,7 +93,7 @@ export async function updateClientDetails(formData: FormData) {
       website = parsed.origin;
     }
   } catch { redirect(`${target}&error=invalid`); }
-  if (!organizationId || !clientId || name.length < 2 || name.length > 160 || industry.length > 100 || notes.length > 5000 || !["healthy", "needs_attention", "at_risk", "churned"].includes(health)) redirect(`${target}&error=invalid`);
+  if (!organizationId || !clientId || name.length < 2 || name.length > 160 || industry.length > 100 || notes.length > 5000 || !isOneOf(clientHealthValues, health)) redirect(`${target}&error=invalid`);
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");

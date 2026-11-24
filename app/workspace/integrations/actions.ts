@@ -13,7 +13,7 @@ async function authorized(organizationId: string) {
   if (!user) redirect("/login");
   const { data: allowed } = await supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "workspace.write" });
   if (!allowed) redirect(`/workspace/integrations?organization=${encodeURIComponent(organizationId)}&error=forbidden`);
-  return supabase;
+  return { supabase, user };
 }
 
 export async function startSlackOAuth(formData: FormData) {
@@ -48,7 +48,7 @@ export async function sendSlackMessage(formData: FormData) {
   if (!organizationId || !integrationId || !channelId || channelId.length > 80 || !message || message.length > 4000) {
     redirect(`/workspace/integrations?organization=${encodeURIComponent(organizationId)}&error=message-invalid`);
   }
-  const supabase = await authorized(organizationId);
+  const { supabase } = await authorized(organizationId);
   const { data: connection } = await supabase.from("integrations").select("id").eq("organization_id", organizationId).eq("id", integrationId).eq("provider", "slack").eq("status", "connected").maybeSingle();
   if (!connection) redirect(`/workspace/integrations?organization=${encodeURIComponent(organizationId)}&error=message-unavailable`);
   try {
@@ -65,7 +65,7 @@ export async function registerIntegration(formData: FormData) {
   const provider = String(formData.get("provider") ?? "");
   const displayName = String(formData.get("display_name") ?? "").trim();
   if (!organizationId || displayName.length < 2 || displayName.length > 80) redirect(`/workspace/integrations?organization=${encodeURIComponent(organizationId)}&error=invalid`);
-  const supabase = await authorized(organizationId);
+  const { supabase } = await authorized(organizationId);
   const { error } = await supabase.rpc("register_integration", { target_org: organizationId, provider_key: provider, display_label: displayName });
   if (error) redirect(`/workspace/integrations?organization=${encodeURIComponent(organizationId)}&error=save`);
   revalidatePath("/workspace/integrations");
@@ -76,7 +76,7 @@ export async function removeIntegration(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   const integrationId = String(formData.get("integration_id") ?? "");
   if (!organizationId || !integrationId) redirect(`/workspace/integrations?organization=${encodeURIComponent(organizationId)}&error=invalid`);
-  const supabase = await authorized(organizationId);
+  const { supabase } = await authorized(organizationId);
   const { data, error } = await supabase.rpc("remove_integration", { target_org: organizationId, integration_id: integrationId });
   if (error || !data) redirect(`/workspace/integrations?organization=${encodeURIComponent(organizationId)}&error=remove`);
   revalidatePath("/workspace/integrations");

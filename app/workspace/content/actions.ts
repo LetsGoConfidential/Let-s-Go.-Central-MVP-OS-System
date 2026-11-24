@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { dateAtNineInZoneToIso } from "@/lib/dates";
+import { isOneOf } from "@/lib/validation";
+
+const contentStatuses = ["draft", "review", "approved", "scheduled", "published"] as const;
 
 async function writer(organizationId: string) {
   const supabase = await createClient();
@@ -43,7 +46,7 @@ export async function updateContentStatus(formData: FormData) {
   const itemId = String(formData.get("item_id") ?? "");
   const status = String(formData.get("status") ?? "");
   const scheduledDate = String(formData.get("scheduled_date") ?? "").trim();
-  if (!organizationId || !itemId || !["draft", "review", "approved", "scheduled", "published"].includes(status)) redirect(`/workspace/content?organization=${encodeURIComponent(organizationId)}&error=invalid`);
+  if (!organizationId || !itemId || !isOneOf(contentStatuses, status)) redirect(`/workspace/content?organization=${encodeURIComponent(organizationId)}&error=invalid`);
   const { supabase } = await writer(organizationId);
   let scheduleIso: string | null = null;
   if (scheduledDate) {
@@ -70,7 +73,7 @@ export async function updateContentItem(formData: FormData) {
   const status = String(formData.get("status") ?? "");
   const scheduledDate = String(formData.get("scheduled_date") ?? "").trim();
   const target = `/workspace/content/${encodeURIComponent(itemId)}?organization=${encodeURIComponent(organizationId)}`;
-  if (!organizationId || !itemId || title.length < 2 || title.length > 200 || channel.length > 80 || caption.length > 5000 || !["post", "story", "video", "email", "article", "other"].includes(format) || !["draft", "review", "approved", "scheduled", "published"].includes(status)) redirect(`${target}&error=invalid`);
+  if (!organizationId || !itemId || title.length < 2 || title.length > 200 || channel.length > 80 || caption.length > 5000 || !["post", "story", "video", "email", "article", "other"].includes(format) || !isOneOf(contentStatuses, status)) redirect(`${target}&error=invalid`);
   const { supabase } = await writer(organizationId);
   if (clientId) {
     const { data: client } = await supabase.from("clients").select("id").eq("organization_id", organizationId).eq("id", clientId).maybeSingle();

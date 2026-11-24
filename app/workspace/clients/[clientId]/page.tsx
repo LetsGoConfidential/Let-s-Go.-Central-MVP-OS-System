@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { Activity, ArrowLeft, CalendarClock, CheckCircle2, FileText, MessageSquare, Users } from "lucide-react";
+import { Activity, ArrowLeft, CalendarClock, CheckCircle2, FileText, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createContact, updateClientDetails, updateContact } from "../actions";
 
@@ -47,7 +47,6 @@ export default async function ClientDetailPage({ params, searchParams }: { param
   const currency = org.currency.trim();
   const money = new Intl.NumberFormat("en-IN", { style: "currency", currency, maximumFractionDigits: 0 });
   const dueTime = (value: string) => new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", timeZone: org.timezone }).format(new Date(value));
-  const detailPath = `/workspace/clients/${clientId}?organization=${organizationId}`;
   const errorMessage = query.error === "forbidden" ? "Your role does not have permission to change this client." : query.error === "invalid" ? "Check the client/contact details and try again." : query.error ? "The client change could not be saved." : null;
 
   return <main className="app-shell"><aside className="sidebar"><a className="brand" href="/workspace"><span className="brand-name">LET’S GO.</span><span className="brand-sub">CENTRAL OS</span></a><div className="org-switch"><span className="org-mark">LG</span><span className="org-copy"><b>{org.name}</b><small>{membership.role}</small></span></div><div className="nav-caption">WORKSPACE</div><nav aria-label="Main navigation"><a className="nav-link" href={`/workspace?organization=${organizationId}`}>Overview</a><a className="nav-link" href={`/workspace/sales?organization=${organizationId}`}>Sales &amp; CRM</a><a className="nav-link active" href={`/workspace/clients?organization=${organizationId}`}><Users size={17}/><span>Clients</span></a><a className="nav-link" href={`/workspace/projects?organization=${organizationId}`}>Projects</a><a className="nav-link" href={`/workspace/content?organization=${organizationId}`}>Content</a><a className="nav-link" href={`/workspace/tasks?organization=${organizationId}`}>Tasks</a><a className="nav-link" href={`/workspace/finance?organization=${organizationId}`}>Finance</a></nav><div className="sidebar-bottom"><div className="profile"><div className="avatar avatar-dark">{(user.email ?? "LG").slice(0, 2).toUpperCase()}</div><div><b>{user.email}</b><small>{membership.role}</small></div><form action="/auth/signout" method="post"><button className="signout-inline" aria-label="Sign out">↗</button></form></div></div></aside>

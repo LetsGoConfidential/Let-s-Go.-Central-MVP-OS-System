@@ -4,6 +4,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isOneOf } from "@/lib/validation";
 
 function teamUrl(organizationId: string, result: string) {
   return `/workspace/team?organization=${encodeURIComponent(organizationId)}&${result}=1`;
@@ -79,7 +80,7 @@ export async function updateTeamMember(formData: FormData) {
   const userId = String(formData.get("user_id") ?? "");
   const role = String(formData.get("role") ?? "");
   const status = String(formData.get("status") ?? "active");
-  if (!organizationId || !userId || !["admin", "manager", "member"].includes(role) || !["active", "suspended"].includes(status)) redirect(teamUrl(organizationId, "invalid"));
+  if (!organizationId || !userId || !isOneOf(["admin", "manager", "member"] as const, role) || !isOneOf(["active", "suspended"] as const, status)) redirect(teamUrl(organizationId, "invalid"));
   const { supabase } = await authorized(organizationId);
   const { data: updated, error } = await supabase.rpc("manage_org_member", { target_org: organizationId, target_user: userId, new_role: role, new_status: status });
   if (error || !updated) redirect(teamUrl(organizationId, "member-failed"));

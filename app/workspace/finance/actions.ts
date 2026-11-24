@@ -3,6 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isOneOf } from "@/lib/validation";
+
+const paymentMethods = ["bank_transfer", "cash", "card", "cheque", "other"] as const;
 
 async function authorizedFinanceClient(organizationId: string) {
   const supabase = await createClient();
@@ -69,8 +72,7 @@ export async function recordPayment(formData: FormData) {
   const invoiceId = String(formData.get("invoice_id") ?? "");
   const amount = Number(formData.get("amount") ?? 0);
   const method = String(formData.get("method") ?? "other");
-  const allowedMethods = ["bank_transfer", "cash", "card", "cheque", "other"];
-  if (!organizationId || !invoiceId || !Number.isFinite(amount) || amount <= 0 || amount > 999999999999.99 || !allowedMethods.includes(method)) fail(organizationId);
+  if (!organizationId || !invoiceId || !Number.isFinite(amount) || amount <= 0 || amount > 999999999999.99 || !isOneOf(paymentMethods, method)) fail(organizationId);
   const supabase = await authorizedFinanceClient(organizationId);
   const { data: { user } } = await supabase.auth.getUser();
   const { data: invoice, error: invoiceError } = await supabase.from("invoices").select("id,total,credit_total,amount_paid,currency,status").eq("id", invoiceId).eq("organization_id", organizationId).maybeSingle();

@@ -35,7 +35,6 @@ export default async function ContentItemPage({ params, searchParams }: { params
   const reviewerNames = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name]));
   const selectedClient = (clients ?? []).find((client) => client.id === item.client_id);
   const selectedProject = (projects ?? []).find((project) => project.id === item.project_id);
-  const detailPath = `/workspace/content/${itemId}?organization=${organizationId}`;
   const errorMessage = query.error === "forbidden" ? "Your role does not have permission to change this content." : query.error === "invalid" ? "Check the title, project/client match, workflow state, and publish date." : query.error === "review_invalid" ? "Add feedback for a comment or change request, up to 3,000 characters." : query.error === "review_save" ? "The review could not be saved. Confirm the item is in review before approving or requesting changes." : query.error ? "The content item could not be saved." : null;
   const dateTime = (value: string) => new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: org.timezone }).format(new Date(value));
 

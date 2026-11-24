@@ -3,6 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { isOneOf } from "@/lib/validation";
+
+const taskStatuses = ["todo", "in_progress", "blocked", "done"] as const;
+const priorities = ["low", "medium", "high", "urgent"] as const;
 
 async function writer(organizationId: string) {
   const supabase = await createClient();
@@ -20,7 +24,7 @@ export async function createTask(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
   const priority = String(formData.get("priority") ?? "medium");
   const dueDate = String(formData.get("due_date") ?? "");
-  if (!organizationId || title.length < 2 || title.length > 200 || !["low", "medium", "high", "urgent"].includes(priority) || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))) redirect(`/workspace/tasks?organization=${encodeURIComponent(organizationId)}&error=invalid`);
+  if (!organizationId || title.length < 2 || title.length > 200 || !isOneOf(priorities, priority) || (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate))) redirect(`/workspace/tasks?organization=${encodeURIComponent(organizationId)}&error=invalid`);
   const { supabase, user } = await writer(organizationId);
   const { data: project } = projectId ? await supabase.from("projects").select("client_id").eq("organization_id", organizationId).eq("id", projectId).maybeSingle() : { data: null };
   const { error } = await supabase.from("tasks").insert({ organization_id: organizationId, project_id: projectId || null, client_id: project?.client_id ?? null, assignee_id: assigneeId || null, title, priority, due_at: dueDate ? `${dueDate}T23:59:00` : null, created_by: user.id });
@@ -33,7 +37,7 @@ export async function updateTaskStatus(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   const taskId = String(formData.get("task_id") ?? "");
   const status = String(formData.get("status") ?? "");
-  if (!organizationId || !taskId || !["todo", "in_progress", "blocked", "done"].includes(status)) redirect(`/workspace/tasks?organization=${encodeURIComponent(organizationId)}&error=invalid`);
+  if (!organizationId || !taskId || !isOneOf(taskStatuses, status)) redirect(`/workspace/tasks?organization=${encodeURIComponent(organizationId)}&error=invalid`);
   const { supabase } = await writer(organizationId);
   const { error } = await supabase.from("tasks").update({ status, completed_at: status === "done" ? new Date().toISOString() : null }).eq("organization_id", organizationId).eq("id", taskId);
   if (error) redirect(`/workspace/tasks?organization=${encodeURIComponent(organizationId)}&error=save`);
@@ -63,7 +67,7 @@ export async function updateTaskDetails(formData: FormData) {
   const dueDate = String(formData.get("due_date") ?? "");
   const target = `/workspace/tasks/${encodeURIComponent(taskId)}?organization=${encodeURIComponent(organizationId)}`;
   const dateValid = !dueDate || (/^\d{4}-\d{2}-\d{2}$/.test(dueDate) && Number.isFinite(Date.parse(`${dueDate}T00:00:00Z`)) && new Date(`${dueDate}T00:00:00Z`).toISOString().slice(0, 10) === dueDate);
-  if (!organizationId || !taskId || title.length < 2 || title.length > 200 || description.length > 5000 || !["todo", "in_progress", "blocked", "done"].includes(status) || !["low", "medium", "high", "urgent"].includes(priority) || !dateValid) redirect(`${target}&error=invalid`);
+  if (!organizationId || !taskId || title.length < 2 || title.length > 200 || description.length > 5000 || !isOneOf(taskStatuses, status) || !isOneOf(priorities, priority) || !dateValid) redirect(`${target}&error=invalid`);
   const { supabase } = await writer(organizationId);
   const { data: existing } = await supabase.from("tasks").select("status,completed_at").eq("organization_id", organizationId).eq("id", taskId).maybeSingle();
   if (!existing) redirect(`${target}&error=save`);

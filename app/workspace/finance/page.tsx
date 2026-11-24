@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { BadgeIndianRupee, CalendarClock, FileText, ListTodo, Users, WalletCards } from "lucide-react";
+import { FileText, ListTodo, Users, WalletCards } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createCreditNote, createExpense, createInvoice, createInvoiceRefund, markInvoiceSent, recordPayment } from "./actions";
 

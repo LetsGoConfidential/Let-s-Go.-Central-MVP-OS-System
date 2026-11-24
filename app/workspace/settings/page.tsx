@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { Activity, CalendarClock, CircleDollarSign, FileText, FolderOpen, ListTodo, Settings2, Users, WalletCards } from "lucide-react";
+import { Activity, CalendarClock, CircleDollarSign, FileText, ListTodo, Settings2, Users, WalletCards } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { supportedCurrencies } from "@/lib/organization/currencies";
 import { saveOrganizationSettings } from "./actions";

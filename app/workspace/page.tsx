@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { Activity, BadgeIndianRupee, BarChart3, Bot, CalendarClock, CircleAlert, FileText, ListTodo, Users, WalletCards } from "lucide-react";
+import Link from "next/link";
+import { Activity, BarChart3, Bot, CalendarClock, CircleAlert, FileText, ListTodo, Users, WalletCards } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createWorkspace } from "./actions";
 
@@ -34,14 +35,17 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
   }
 
   const orgId = activeMembership.organization_id;
+  const requestNow = new Date();
+  const requestNowIso = requestNow.toISOString();
+  const projectRiskDate = new Date(requestNow.getTime() + 2 * 86400000).toISOString().slice(0, 10);
   const [clients, openLeads, projects, openTasks, overdueTasks, reviewContent, riskProjects, audit, finance, financeTrend, receivablesAging] = await Promise.all([
     supabase.from("clients").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "active"),
     supabase.from("leads").select("id", { count: "exact", head: true }).eq("organization_id", orgId).not("stage", "in", "(won,lost)"),
     supabase.from("projects").select("id", { count: "exact", head: true }).eq("organization_id", orgId).in("status", ["planned", "in_progress", "internal_review", "client_review"]),
     supabase.from("tasks").select("id", { count: "exact", head: true }).eq("organization_id", orgId).neq("status", "done"),
-    supabase.from("tasks").select("id", { count: "exact", head: true }).eq("organization_id", orgId).neq("status", "done").lt("due_at", new Date().toISOString()),
+    supabase.from("tasks").select("id", { count: "exact", head: true }).eq("organization_id", orgId).neq("status", "done").lt("due_at", requestNowIso),
     supabase.from("content_items").select("id", { count: "exact", head: true }).eq("organization_id", orgId).eq("status", "review"),
-    supabase.from("projects").select("id", { count: "exact", head: true }).eq("organization_id", orgId).in("status", ["in_progress", "internal_review", "client_review"]).lte("due_date", new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10)),
+    supabase.from("projects").select("id", { count: "exact", head: true }).eq("organization_id", orgId).in("status", ["in_progress", "internal_review", "client_review"]).lte("due_date", projectRiskDate),
     supabase.from("audit_logs").select("id, action, entity_type, entity_id, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }).limit(5),
     supabase.rpc("finance_summary", { target_org: orgId }),
     supabase.rpc("finance_monthly_trend", { target_org: orgId, month_count: 6 }),
@@ -58,7 +62,7 @@ export default async function WorkspacePage({ searchParams }: { searchParams: Pr
 
   return <main className="app-shell">
     <aside className="sidebar">
-      <a className="brand" href="/"><span className="brand-name">LET’S GO.</span><span className="brand-sub">CENTRAL OS</span></a>
+      <Link className="brand" href="/"><span className="brand-name">LET’S GO.</span><span className="brand-sub">CENTRAL OS</span></Link>
       {memberships.length > 1 ? <form action="/workspace" className="org-switch"><span className="org-mark">LG</span><span className="org-copy"><b>{orgName}</b><small>{activeMembership.role}</small></span><select className="org-picker" aria-label="Switch workspace" name="organization" defaultValue={orgId}>{memberships.map((membership) => <option value={membership.organization_id} key={membership.organization_id}>{organizationName(membership)}</option>)}</select><button className="org-switch-button" aria-label="Open selected workspace">↗</button></form> : <div className="org-switch"><span className="org-mark">LG</span><span className="org-copy"><b>{orgName}</b><small>{activeMembership.role}</small></span></div>}
       <div className="nav-caption">WORKSPACE</div>
       <nav aria-label="Main navigation"><a className="nav-link active" href={`/workspace?organization=${orgId}`}><Activity size={17}/><span>Overview</span></a><a className="nav-link" href={`/workspace/sales?organization=${orgId}`}><Activity size={17}/><span>Sales & CRM</span></a><a className="nav-link" href={`/workspace/clients?organization=${orgId}`}><Users size={17}/><span>Clients</span></a><a className="nav-link" href={`/workspace/projects?organization=${orgId}`}><FileText size={17}/><span>Projects</span></a><a className="nav-link" href={`/workspace/content?organization=${orgId}`}><CalendarClock size={17}/><span>Content</span></a><a className="nav-link" href={`/workspace/tasks?organization=${orgId}`}><ListTodo size={17}/><span>Tasks</span></a><a className="nav-link" href={`/workspace/team?organization=${orgId}`}><Users size={17}/><span>Team</span></a><a className="nav-link" href={`/workspace/finance?organization=${orgId}`}><WalletCards size={17}/><span>Finance</span></a><a className="nav-link" href={`/workspace/reports?organization=${orgId}`}><BarChart3 size={17}/><span>Reports</span></a><a className="nav-link" href={`/workspace/audit?organization=${orgId}`}><Activity size={17}/><span>Audit history</span></a><a className="nav-link" href={`/workspace/files?organization=${orgId}`}><FileText size={17}/><span>Files</span></a><a className="nav-link" href={`/workspace/integrations?organization=${orgId}`}><Users size={17}/><span>Integrations</span></a><a className="nav-link" href={`/workspace/automations?organization=${orgId}`}><Activity size={17}/><span>Automations</span></a><a className="nav-link" href={`/workspace/ai?organization=${orgId}`}><Bot size={17}/><span>AI Command Center</span></a></nav>
