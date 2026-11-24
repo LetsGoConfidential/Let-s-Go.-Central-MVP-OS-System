@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(24);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -21,10 +21,21 @@ values
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'member', 'active', now()),
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 'manager', 'active', now());
 
-insert into public.clients (organization_id, name)
+insert into public.clients (id, organization_id, name)
 values
-  ('20000000-0000-4000-8000-000000000001', 'RLS fixture tenant A'),
-  ('20000000-0000-4000-8000-000000000002', 'RLS fixture tenant B');
+  ('40000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', 'RLS fixture tenant A'),
+  ('40000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'RLS fixture tenant B');
+
+insert into public.projects (id, organization_id, client_id, name)
+values
+  ('50000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS fixture project A'),
+  ('50000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS fixture project B');
+
+insert into public.tasks (organization_id, project_id, title)
+values ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 'RLS fixture task A');
+
+insert into public.content_items (organization_id, client_id, project_id, title)
+values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 'RLS fixture content A');
 
 insert into public.leads (id, organization_id, company_name, contact_name, email, stage, estimated_value)
 values (
@@ -118,6 +129,37 @@ select results_eq(
   $$values ('RLS fixture converted lead'::text), ('RLS fixture owner-created'::text), ('RLS fixture tenant A'::text)$$,
   'Read-only member can read their tenant and still cannot see Tenant B'
 );
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+
+select results_eq(
+  $$select
+      (select count(*)::bigint from public.projects p where p.organization_id = '20000000-0000-4000-8000-000000000001' and p.name = 'RLS fixture project A' and p.client_id = '40000000-0000-4000-8000-000000000001'),
+      (select count(*)::bigint from public.tasks t where t.organization_id = '20000000-0000-4000-8000-000000000001' and t.title = 'RLS fixture task A' and t.project_id = '50000000-0000-4000-8000-000000000001'),
+      (select count(*)::bigint from public.content_items c where c.organization_id = '20000000-0000-4000-8000-000000000001' and c.title = 'RLS fixture content A' and c.client_id = '40000000-0000-4000-8000-000000000001' and c.project_id = '50000000-0000-4000-8000-000000000001')$$,
+  $$values (1::bigint, 1::bigint, 1::bigint)$$,
+  'Tenant A project, task, and content remain linked to Tenant A records'
+);
+
+select throws_ok(
+  $$insert into public.projects (organization_id, client_id, name) values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', 'RLS fixture cross-tenant project') returning id$$,
+  '23503', null,
+  'Project cannot link a client from another tenant'
+);
+
+select throws_ok(
+  $$insert into public.tasks (organization_id, project_id, title) values ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000002', 'RLS fixture cross-tenant task') returning id$$,
+  '23503', null,
+  'Task cannot link a project from another tenant'
+);
+
+select throws_ok(
+  $$insert into public.content_items (organization_id, client_id, project_id, title) values ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000001', 'RLS fixture cross-tenant content') returning id$$,
+  '23503', null,
+  'Content cannot link a client from another tenant'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
 
 select results_eq(
   $$update public.organizations set name = 'RLS fixture member update' where id = '20000000-0000-4000-8000-000000000001' returning id::text$$,
