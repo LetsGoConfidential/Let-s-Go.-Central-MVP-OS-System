@@ -251,6 +251,7 @@ create table public.automation_runs (
   started_at timestamptz,
   finished_at timestamptz,
   created_at timestamptz not null default now(),
+  unique (organization_id, id),
   foreign key (organization_id, rule_id) references public.automation_rules(organization_id, id)
 );
 
@@ -266,6 +267,7 @@ create table public.integrations (
   last_synced_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  unique (organization_id, id),
   unique (organization_id, provider, external_account_id)
 );
 
@@ -276,7 +278,8 @@ create table public.ai_conversations (
   title text not null default 'New conversation',
   context jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (organization_id, id)
 );
 
 create table public.ai_messages (
