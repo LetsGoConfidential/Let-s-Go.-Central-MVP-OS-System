@@ -17,6 +17,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [ ] Apply the migration locally and inspect Supabase policy behavior.
 - [ ] Create local auth account and attach it as owner of the seeded tenant.
 - [x] Add repeatable pgTAP checks for cross-tenant reads/writes and member write restrictions, plus a GitHub Actions database verification job.
+- [x] GitHub Actions applied all 27 migrations and seed fixtures, then passed 20 pgTAP checks for tenant isolation, owner/member/manager permissions, won-lead conversion, and invoice payment rules (run #10, commit `edda7d3`).
 
 ## Phase 1 — secure product access
 
@@ -91,12 +92,12 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 
 ## MVP release gates
 
-1. Apply schema and run database policy checks in local Supabase.
-2. Verify two-tenant read/write isolation and role matrix.
-3. Exercise invite, lead conversion, project/task/content flow, invoice/expense flow, and dashboard aggregate consistency.
+1. GitHub Actions migration, seed, and pgTAP pass is green; apply the schema in the target Supabase project and inspect its deployed policy behavior.
+2. CI verifies two-tenant visibility/write boundaries and owner/member/manager checks across organization, client, and finance examples; extend the full role matrix to every tenant table before production rollout.
+3. Exercise invite, lead conversion, project/task/content flow, invoice/expense flow, and dashboard aggregate consistency in the configured app. CI currently covers lead conversion and invoice item/payment invariants, not the complete browser workflow.
 4. Configure production secrets and backups; deploy behind an invite-only pilot for Let’s Go Digitals.
 5. Capture operational feedback, then prioritize the next slice from real use.
 
 ## Immediate next implementation slice
 
-Run `pnpm preflight`, apply migrations 001-027, and provision the founder account as owner of `lets-go-digitals`, then verify the tenant and role policies. Regenerate database types from local Supabase. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.
+The CI runner now applies migrations 001-027 and passes the pgTAP suite. The next local/target-environment step is to configure valid Supabase settings, the CLI, and Docker; run `pnpm preflight`; apply migrations; provision the founder account as owner of `lets-go-digitals`; and exercise the browser workflows. Regenerate database types from local Supabase. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.
