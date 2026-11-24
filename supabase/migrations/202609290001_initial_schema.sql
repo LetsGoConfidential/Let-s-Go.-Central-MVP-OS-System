@@ -236,7 +236,8 @@ create table public.automation_rules (
   is_enabled boolean not null default false,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (organization_id, id)
 );
 
 create table public.automation_runs (
