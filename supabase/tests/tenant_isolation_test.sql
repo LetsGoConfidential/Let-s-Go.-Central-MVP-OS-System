@@ -1,6 +1,6 @@
 begin;
 
-select plan(40);
+select plan(42);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -107,6 +107,12 @@ select results_eq(
   $$select id::text from public.profiles where id in ('10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000004') order by id$$,
   $$values ('10000000-0000-4000-8000-000000000001'::text)$$,
   'Tenant A owner cannot read a Tenant B user profile'
+);
+
+select results_eq(
+  $$select user_id::text from public.org_members where user_id in ('10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000004') order by user_id$$,
+  $$values ('10000000-0000-4000-8000-000000000001'::text)$$,
+  'Tenant A owner cannot read Tenant B membership records'
 );
 
 select results_eq(
@@ -283,6 +289,12 @@ select throws_ok(
   $$insert into public.expenses (organization_id, description, category, amount) values ('20000000-0000-4000-8000-000000000001', 'RLS fixture restricted expense', 'test', 1) returning id$$,
   '42501', null,
   'Manager without finance.manage cannot create expenses'
+);
+
+select throws_ok(
+  $$insert into public.roles (organization_id, name) values ('20000000-0000-4000-8000-000000000001', 'RLS fixture manager role') returning id$$,
+  '42501', null,
+  'Manager without organization.manage cannot create a role'
 );
 
 select results_eq(
