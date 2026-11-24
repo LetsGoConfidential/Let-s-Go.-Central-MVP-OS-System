@@ -115,7 +115,7 @@ select throws_ok(
 
 select results_eq(
   $$select name::text from public.clients where name like 'RLS fixture%' order by name$$,
-  $$values ('RLS fixture owner-created'::text), ('RLS fixture tenant A'::text)$$,
+  $$values ('RLS fixture converted lead'::text), ('RLS fixture owner-created'::text), ('RLS fixture tenant A'::text)$$,
   'Read-only member can read their tenant and still cannot see Tenant B'
 );
 
