@@ -1,6 +1,6 @@
 begin;
 
-select plan(47);
+select plan(49);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -35,6 +35,9 @@ values
 
 insert into public.invoices (organization_id, client_id, invoice_number, currency, subtotal)
 values ('20000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS-INVOICE-TENANT-B', 'INR', 1000);
+
+insert into public.expenses (organization_id, description, category, amount, currency)
+values ('20000000-0000-4000-8000-000000000002', 'RLS expense tenant B', 'test', 25, 'INR');
 
 insert into public.projects (id, organization_id, client_id, name)
 values
@@ -88,10 +91,22 @@ select results_eq(
   'Tenant A owner cannot read Tenant B invoices'
 );
 
+select results_eq(
+  $$select description::text from public.expenses where description = 'RLS expense tenant B'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B expenses'
+);
+
 select throws_ok(
   $$insert into public.invoices (organization_id, client_id, invoice_number) values ('20000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS-INVOICE-FORGED') returning id$$,
   '42501', null,
   'Tenant A owner cannot create an invoice in Tenant B'
+);
+
+select throws_ok(
+  $$insert into public.expenses (organization_id, description, category, amount) values ('20000000-0000-4000-8000-000000000002', 'RLS forged tenant B expense', 'test', 1) returning id$$,
+  '42501', null,
+  'Tenant A owner cannot create an expense in Tenant B'
 );
 
 select throws_ok(
