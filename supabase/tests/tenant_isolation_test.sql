@@ -1,6 +1,6 @@
 begin;
 
-select plan(69);
+select plan(72);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -54,6 +54,10 @@ values
 
 insert into public.tasks (organization_id, project_id, title)
 values ('20000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000002', 'RLS fixture task B');
+
+insert into public.task_comments (organization_id, task_id, author_id, body)
+select '20000000-0000-4000-8000-000000000002', t.id, '10000000-0000-4000-8000-000000000004', 'RLS task comment tenant B'
+from public.tasks t where t.organization_id = '20000000-0000-4000-8000-000000000002' and t.title = 'RLS fixture task B';
 
 insert into public.leads (id, organization_id, company_name, contact_name, email, stage, estimated_value)
 values
@@ -123,6 +127,12 @@ select results_eq(
   $$select manager_notes::text from public.team_performance_reviews where member_id = '10000000-0000-4000-8000-000000000002'$$,
   $$select null::text where false$$,
   'Tenant B owner cannot read a Tenant A performance review'
+);
+
+select results_eq(
+  $$select body::text from public.task_comments where body = 'RLS task comment tenant B'$$,
+  $$values ('RLS task comment tenant B'::text)$$,
+  'Tenant B owner can read their own task comment'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
@@ -209,6 +219,12 @@ select results_eq(
   $$select title::text from public.content_items where title = 'RLS fixture content B'$$,
   $$select null::text where false$$,
   'Tenant A owner cannot read Tenant B content items'
+);
+
+select results_eq(
+  $$select body::text from public.task_comments where body = 'RLS task comment tenant B'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B task comments'
 );
 
 select results_eq(
@@ -346,6 +362,12 @@ select results_eq(
   $$select manager_notes::text from public.team_performance_reviews where member_id = '10000000-0000-4000-8000-000000000002'$$,
   $$select null::text where false$$,
   'Read-only member cannot read private performance review notes'
+);
+
+select results_eq(
+  $$select body::text from public.task_comments where body = 'RLS task comment tenant B'$$,
+  $$select null::text where false$$,
+  'Tenant A member cannot read a Tenant B task comment'
 );
 
 select results_eq(
