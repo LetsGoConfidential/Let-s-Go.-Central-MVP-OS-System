@@ -1,6 +1,6 @@
 begin;
 
-select plan(75);
+select plan(76);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -44,16 +44,16 @@ values
   ('50000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS fixture project A'),
   ('50000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS fixture project B');
 
-insert into public.tasks (organization_id, project_id, title)
-values ('20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 'RLS fixture task A');
+insert into public.tasks (id, organization_id, project_id, title)
+values ('51000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 'RLS fixture task A');
 
 insert into public.content_items (organization_id, client_id, project_id, title)
 values
   ('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 'RLS fixture content A'),
   ('20000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000002', 'RLS fixture content B');
 
-insert into public.tasks (organization_id, project_id, title)
-values ('20000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000002', 'RLS fixture task B');
+insert into public.tasks (id, organization_id, project_id, title)
+values ('51000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000002', 'RLS fixture task B');
 
 insert into public.task_comments (organization_id, task_id, author_id, body)
 select '20000000-0000-4000-8000-000000000002', t.id, '10000000-0000-4000-8000-000000000004', 'RLS task comment tenant B'
@@ -422,6 +422,12 @@ select throws_ok(
   $$insert into public.clients (organization_id, name) values ('20000000-0000-4000-8000-000000000001', 'RLS fixture member-write') returning id$$,
   '42501', null,
   'Read-only member cannot create a client'
+);
+
+select throws_ok(
+  $$insert into public.task_comments (organization_id, task_id, author_id, body) values ('20000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'RLS unauthorized member comment') returning id$$,
+  '42501', null,
+  'Read-only member cannot add a task comment'
 );
 
 select results_eq(
