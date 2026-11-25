@@ -1,6 +1,6 @@
 begin;
 
-select plan(89);
+select plan(94);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -22,6 +22,11 @@ values
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'member', 'active', now()),
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 'manager', 'active', now()),
   ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'owner', 'active', now());
+
+insert into public.org_invitations (organization_id, email, user_id, role, status, invited_by)
+values
+  ('20000000-0000-4000-8000-000000000001', 'rls-invite-a@example.test', '10000000-0000-4000-8000-000000000004', 'member', 'pending', '10000000-0000-4000-8000-000000000001'),
+  ('20000000-0000-4000-8000-000000000002', 'rls-invite-b@example.test', '10000000-0000-4000-8000-000000000002', 'member', 'pending', '10000000-0000-4000-8000-000000000004');
 
 insert into public.clients (id, organization_id, name)
 values
@@ -154,6 +159,12 @@ select results_eq(
 );
 
 select results_eq(
+  $$select email::text from public.org_invitations where email = 'rls-invite-b@example.test'$$,
+  $$values ('rls-invite-b@example.test'::text)$$,
+  'Tenant B owner can read their pending invitation'
+);
+
+select results_eq(
   $$select body::text from public.task_comments where body = 'RLS task comment tenant B'$$,
   $$values ('RLS task comment tenant B'::text)$$,
   'Tenant B owner can read their own task comment'
@@ -217,6 +228,18 @@ select results_eq(
   $$select invoice_number::text from public.invoices where invoice_number = 'RLS-INVOICE-TENANT-B'$$,
   $$select null::text where false$$,
   'Tenant A owner cannot read Tenant B invoices'
+);
+
+select results_eq(
+  $$select email::text from public.org_invitations where email = 'rls-invite-a@example.test'$$,
+  $$values ('rls-invite-a@example.test'::text)$$,
+  'Tenant A owner can read their pending invitation'
+);
+
+select results_eq(
+  $$select email::text from public.org_invitations where email = 'rls-invite-b@example.test'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read a Tenant B invitation'
 );
 
 select results_eq(
@@ -465,6 +488,12 @@ select results_eq(
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
 
 select results_eq(
+  $$select email::text from public.org_invitations where email = 'rls-invite-a@example.test'$$,
+  $$select null::text where false$$,
+  'Read-only member cannot read pending invitations'
+);
+
+select results_eq(
   $$select manager_notes::text from public.team_performance_reviews where member_id = '10000000-0000-4000-8000-000000000002'$$,
   $$select null::text where false$$,
   'Read-only member cannot read private performance review notes'
@@ -639,6 +668,12 @@ select results_eq(
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+
+select results_eq(
+  $$select email::text from public.org_invitations where email = 'rls-invite-a@example.test'$$,
+  $$select null::text where false$$,
+  'Manager without organization.manage cannot read pending invitations'
+);
 
 select results_eq(
   $$select manager_notes::text from public.team_performance_reviews where member_id = '10000000-0000-4000-8000-000000000002'$$,
