@@ -1,6 +1,6 @@
 begin;
 
-select plan(76);
+select plan(84);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -66,6 +66,21 @@ values
 
 insert into public.deals (organization_id, lead_id, client_id, name, stage, value)
 values ('20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS fixture tenant B deal', 'qualified', 10000);
+
+insert into public.organization_files (organization_id, storage_path, original_filename, mime_type, size_bytes, uploaded_by)
+values ('20000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002/RLS-file.pdf', 'RLS-file.pdf', 'application/pdf', 10, '10000000-0000-4000-8000-000000000004');
+
+insert into public.integrations (id, organization_id, provider, display_name, status)
+values ('73000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'slack', 'RLS Tenant B Slack', 'disconnected');
+
+insert into public.automation_rules (id, organization_id, name, trigger_type, created_by)
+values ('74000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'RLS Tenant B rule', 'manual', '10000000-0000-4000-8000-000000000004');
+
+insert into public.automation_runs (id, organization_id, rule_id, status, trigger_payload)
+values ('75000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', '74000000-0000-4000-8000-000000000002', 'succeeded', '{"fixture":true}');
+
+insert into public.automation_run_attempts (organization_id, run_id, attempt_number, idempotency_key, actor_id, status, result)
+values ('20000000-0000-4000-8000-000000000002', '75000000-0000-4000-8000-000000000002', 1, 'RLS-AUTO-ATTEMPT-TENANT-B', '10000000-0000-4000-8000-000000000004', 'succeeded', '{"fixture":true}');
 
 insert into public.ai_conversations (id, organization_id, user_id, title)
 values
@@ -147,6 +162,16 @@ select results_eq(
   'Tenant B owner can read their content review'
 );
 
+select results_eq(
+  $$select
+      (select count(*)::bigint from public.organization_files where original_filename = 'RLS-file.pdf'),
+      (select count(*)::bigint from public.integrations where id = '73000000-0000-4000-8000-000000000002'),
+      (select count(*)::bigint from public.automation_runs where id = '75000000-0000-4000-8000-000000000002'),
+      (select count(*)::bigint from public.automation_run_attempts where idempotency_key = 'RLS-AUTO-ATTEMPT-TENANT-B')$$,
+  $$values (1::bigint, 1::bigint, 1::bigint, 1::bigint)$$,
+  'Tenant B owner can read their file, integration, and automation run history'
+);
+
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select results_eq(
@@ -213,6 +238,42 @@ select results_eq(
   $$select amount::numeric from public.invoice_refunds where organization_id = '20000000-0000-4000-8000-000000000002'$$,
   $$select null::numeric where false$$,
   'Tenant A owner cannot read Tenant B invoice refunds'
+);
+
+select results_eq(
+  $$select original_filename::text from public.organization_files where original_filename = 'RLS-file.pdf'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B file metadata'
+);
+
+select results_eq(
+  $$select display_name::text from public.integrations where id = '73000000-0000-4000-8000-000000000002'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B integrations'
+);
+
+select results_eq(
+  $$select name::text from public.automation_rules where id = '74000000-0000-4000-8000-000000000002'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B automation rules'
+);
+
+select results_eq(
+  $$select status::text from public.automation_runs where id = '75000000-0000-4000-8000-000000000002'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B automation runs'
+);
+
+select results_eq(
+  $$select idempotency_key::text from public.automation_run_attempts where idempotency_key = 'RLS-AUTO-ATTEMPT-TENANT-B'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B automation attempts'
+);
+
+select throws_ok(
+  $$select encrypted_credentials from public.integration_secrets$$,
+  '42501', null,
+  'Authenticated users cannot read the service-role credential vault'
 );
 
 select results_eq(
@@ -392,6 +453,17 @@ select results_eq(
   $$select feedback::text from public.content_reviews where feedback = 'RLS content review tenant B'$$,
   $$select null::text where false$$,
   'Tenant A member cannot read a Tenant B content review'
+);
+
+select results_eq(
+  $$select
+      (select count(*)::bigint from public.organization_files where original_filename = 'RLS-file.pdf'),
+      (select count(*)::bigint from public.integrations where id = '73000000-0000-4000-8000-000000000002'),
+      (select count(*)::bigint from public.automation_rules where id = '74000000-0000-4000-8000-000000000002'),
+      (select count(*)::bigint from public.automation_runs where id = '75000000-0000-4000-8000-000000000002'),
+      (select count(*)::bigint from public.automation_run_attempts where idempotency_key = 'RLS-AUTO-ATTEMPT-TENANT-B')$$,
+  $$values (0::bigint, 0::bigint, 0::bigint, 0::bigint, 0::bigint)$$,
+  'Tenant A member cannot read Tenant B files, integrations, or automation history'
 );
 
 select results_eq(
