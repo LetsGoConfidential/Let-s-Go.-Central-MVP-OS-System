@@ -1,6 +1,6 @@
 begin;
 
-select plan(62);
+select plan(66);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -73,6 +73,16 @@ values
 insert into public.ai_action_drafts (id, organization_id, user_id, title, priority)
 values ('62000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'RLS AI tenant B draft', 'medium');
 
+insert into public.team_performance_reviews (
+  organization_id, member_id, author_id, updated_by, period_start,
+  delivery_score, communication_score, ownership_score, client_care_score, manager_notes
+)
+values (
+  '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002',
+  '10000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000003', '2026-11-01',
+  4, 4, 5, 4, 'RLS private manager note'
+);
+
 set local role authenticated;
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
 
@@ -104,7 +114,19 @@ select public.create_invoice_refund(
   50, 'Tenant B isolation fixture', '10000000-0000-4000-8000-000000000004'
 );
 
+select results_eq(
+  $$select manager_notes::text from public.team_performance_reviews where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$select null::text where false$$,
+  'Tenant B owner cannot read a Tenant A performance review'
+);
+
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+
+select results_eq(
+  $$select manager_notes::text from public.team_performance_reviews where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$values ('RLS private manager note'::text)$$,
+  'Tenant A owner can read the private performance review'
+);
 
 select results_eq(
   $$select name::text from public.clients where name like 'RLS fixture%' order by name$$,
@@ -298,6 +320,12 @@ select results_eq(
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
 
 select results_eq(
+  $$select manager_notes::text from public.team_performance_reviews where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$select null::text where false$$,
+  'Read-only member cannot read private performance review notes'
+);
+
+select results_eq(
   $$select title::text from public.ai_conversations where id = '61000000-0000-4000-8000-000000000002'$$,
   $$values ('RLS AI member private'::text)$$,
   'AI member can read their own private conversation'
@@ -431,6 +459,12 @@ select results_eq(
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+
+select results_eq(
+  $$select manager_notes::text from public.team_performance_reviews where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$values ('RLS private manager note'::text)$$,
+  'Authorized manager can read the private performance review'
+);
 
 select results_eq(
   $$select name::text from public.organizations where name like 'RLS Test Tenant%' order by name$$,
