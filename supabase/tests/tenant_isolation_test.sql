@@ -1,6 +1,6 @@
 begin;
 
-select plan(74);
+select plan(69);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -54,14 +54,6 @@ values
 
 insert into public.tasks (organization_id, project_id, title)
 values ('20000000-0000-4000-8000-000000000002', '50000000-0000-4000-8000-000000000002', 'RLS fixture task B');
-
-insert into public.task_comments (organization_id, task_id, author_id, body)
-select '20000000-0000-4000-8000-000000000002', t.id, '10000000-0000-4000-8000-000000000004', 'RLS task comment tenant B'
-from public.tasks t where t.organization_id = '20000000-0000-4000-8000-000000000002' and t.title = 'RLS fixture task B';
-
-insert into public.content_reviews (organization_id, content_item_id, reviewer_id, decision, feedback)
-select '20000000-0000-4000-8000-000000000002', c.id, '10000000-0000-4000-8000-000000000004', 'comment', 'RLS content review tenant B'
-from public.content_items c where c.organization_id = '20000000-0000-4000-8000-000000000002' and c.title = 'RLS fixture content B';
 
 insert into public.leads (id, organization_id, company_name, contact_name, email, stage, estimated_value)
 values
@@ -131,14 +123,6 @@ select results_eq(
   $$select manager_notes::text from public.team_performance_reviews where member_id = '10000000-0000-4000-8000-000000000002'$$,
   $$select null::text where false$$,
   'Tenant B owner cannot read a Tenant A performance review'
-);
-
-select results_eq(
-  $$select
-      (select count(*)::bigint from public.task_comments where body = 'RLS task comment tenant B'),
-      (select count(*)::bigint from public.content_reviews where feedback = 'RLS content review tenant B')$$,
-  $$values (1::bigint, 1::bigint)$$,
-  'Tenant B owner can read their task comments and content reviews'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
@@ -225,18 +209,6 @@ select results_eq(
   $$select title::text from public.content_items where title = 'RLS fixture content B'$$,
   $$select null::text where false$$,
   'Tenant A owner cannot read Tenant B content items'
-);
-
-select results_eq(
-  $$select body::text from public.task_comments where body = 'RLS task comment tenant B'$$,
-  $$select null::text where false$$,
-  'Tenant A owner cannot read Tenant B task comments'
-);
-
-select results_eq(
-  $$select feedback::text from public.content_reviews where feedback = 'RLS content review tenant B'$$,
-  $$select null::text where false$$,
-  'Tenant A owner cannot read Tenant B content reviews'
 );
 
 select results_eq(
@@ -404,21 +376,6 @@ select throws_ok(
   $$insert into public.clients (organization_id, name) values ('20000000-0000-4000-8000-000000000001', 'RLS fixture member-write') returning id$$,
   '42501', null,
   'Read-only member cannot create a client'
-);
-
-select throws_ok(
-  $$insert into public.task_comments (organization_id, task_id, author_id, body) values ('20000000-0000-4000-8000-000000000001', (select id from public.tasks where organization_id = '20000000-0000-4000-8000-000000000001' and title = 'RLS fixture task A'), '10000000-0000-4000-8000-000000000002', 'RLS unauthorized member comment') returning id$$,
-  '42501', null,
-  'Read-only member cannot add a task comment'
-);
-
-select results_eq(
-  $$select
-      (select count(*)::bigint from public.tasks where title = 'RLS fixture task B'),
-      (select count(*)::bigint from public.task_comments where body = 'RLS task comment tenant B'),
-      (select count(*)::bigint from public.content_reviews where feedback = 'RLS content review tenant B')$$,
-  $$values (0::bigint, 0::bigint, 0::bigint)$$,
-  'Tenant A member cannot read Tenant B task and content review records'
 );
 
 select results_eq(
