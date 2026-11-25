@@ -1,6 +1,6 @@
 begin;
 
-select plan(49);
+select plan(53);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -21,7 +21,7 @@ values
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'owner', 'active', now()),
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'member', 'active', now()),
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 'manager', 'active', now()),
-  ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'member', 'active', now());
+  ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'owner', 'active', now());
 
 insert into public.clients (id, organization_id, name)
 values
@@ -59,6 +59,36 @@ insert into public.deals (organization_id, lead_id, client_id, name, stage, valu
 values ('20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS fixture tenant B deal', 'qualified', 10000);
 
 set local role authenticated;
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
+
+insert into public.invoice_items (organization_id, invoice_id, description, quantity, unit_price)
+select i.organization_id, i.id, 'RLS item tenant B', 1, 1000
+from public.invoices i where i.organization_id = '20000000-0000-4000-8000-000000000002'
+  and i.invoice_number = 'RLS-INVOICE-TENANT-B';
+
+update public.invoices set status = 'sent'
+where organization_id = '20000000-0000-4000-8000-000000000002'
+  and invoice_number = 'RLS-INVOICE-TENANT-B';
+
+insert into public.invoice_payments (organization_id, invoice_id, amount, currency, method, recorded_by)
+select i.organization_id, i.id, 300, 'INR', 'bank_transfer', '10000000-0000-4000-8000-000000000004'
+from public.invoices i where i.organization_id = '20000000-0000-4000-8000-000000000002'
+  and i.invoice_number = 'RLS-INVOICE-TENANT-B';
+
+select public.create_invoice_credit(
+  '20000000-0000-4000-8000-000000000002',
+  (select id from public.invoices where organization_id = '20000000-0000-4000-8000-000000000002' and invoice_number = 'RLS-INVOICE-TENANT-B'),
+  'RLS-CREDIT-TENANT-B', 100, 'Tenant B isolation fixture', '10000000-0000-4000-8000-000000000004'
+);
+
+select public.create_invoice_refund(
+  '20000000-0000-4000-8000-000000000002',
+  (select id from public.invoices where organization_id = '20000000-0000-4000-8000-000000000002' and invoice_number = 'RLS-INVOICE-TENANT-B'),
+  (select id from public.invoice_payments where organization_id = '20000000-0000-4000-8000-000000000002'
+    and invoice_id = (select id from public.invoices where organization_id = '20000000-0000-4000-8000-000000000002' and invoice_number = 'RLS-INVOICE-TENANT-B')),
+  50, 'Tenant B isolation fixture', '10000000-0000-4000-8000-000000000004'
+);
+
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select results_eq(
@@ -95,6 +125,30 @@ select results_eq(
   $$select description::text from public.expenses where description = 'RLS expense tenant B'$$,
   $$select null::text where false$$,
   'Tenant A owner cannot read Tenant B expenses'
+);
+
+select results_eq(
+  $$select description::text from public.invoice_items where description = 'RLS item tenant B'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B invoice items'
+);
+
+select results_eq(
+  $$select amount::numeric from public.invoice_payments where organization_id = '20000000-0000-4000-8000-000000000002'$$,
+  $$select null::numeric where false$$,
+  'Tenant A owner cannot read Tenant B invoice payments'
+);
+
+select results_eq(
+  $$select credit_number::text from public.invoice_credits where credit_number = 'RLS-CREDIT-TENANT-B'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B invoice credits'
+);
+
+select results_eq(
+  $$select amount::numeric from public.invoice_refunds where organization_id = '20000000-0000-4000-8000-000000000002'$$,
+  $$select null::numeric where false$$,
+  'Tenant A owner cannot read Tenant B invoice refunds'
 );
 
 select throws_ok(
