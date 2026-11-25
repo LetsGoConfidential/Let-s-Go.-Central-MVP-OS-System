@@ -1,6 +1,6 @@
 begin;
 
-select plan(84);
+select plan(89);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -69,6 +69,9 @@ values ('20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-0000000
 
 insert into public.organization_files (organization_id, storage_path, original_filename, mime_type, size_bytes, uploaded_by)
 values ('20000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002/RLS-file.pdf', 'RLS-file.pdf', 'application/pdf', 10, '10000000-0000-4000-8000-000000000004');
+
+insert into storage.objects (bucket_id, name)
+values ('tenant-files', '20000000-0000-4000-8000-000000000002/RLS-storage-object.pdf');
 
 insert into public.integrations (id, organization_id, provider, display_name, status)
 values ('73000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', 'slack', 'RLS Tenant B Slack', 'disconnected');
@@ -163,6 +166,12 @@ select results_eq(
 );
 
 select results_eq(
+  $$select name::text from storage.objects where bucket_id = 'tenant-files' and name = '20000000-0000-4000-8000-000000000002/RLS-storage-object.pdf'$$,
+  $$values ('20000000-0000-4000-8000-000000000002/RLS-storage-object.pdf'::text)$$,
+  'Tenant B owner can read their private storage object'
+);
+
+select results_eq(
   $$select
       (select count(*)::bigint from public.organization_files where original_filename = 'RLS-file.pdf'),
       (select count(*)::bigint from public.integrations where id = '73000000-0000-4000-8000-000000000002'),
@@ -244,6 +253,24 @@ select results_eq(
   $$select original_filename::text from public.organization_files where original_filename = 'RLS-file.pdf'$$,
   $$select null::text where false$$,
   'Tenant A owner cannot read Tenant B file metadata'
+);
+
+select results_eq(
+  $$select name::text from storage.objects where bucket_id = 'tenant-files' and name = '20000000-0000-4000-8000-000000000002/RLS-storage-object.pdf'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read a Tenant B storage object'
+);
+
+select results_eq(
+  $$insert into storage.objects (bucket_id, name) values ('tenant-files', '20000000-0000-4000-8000-000000000001/RLS-owner-upload.pdf') returning name::text$$,
+  $$values ('20000000-0000-4000-8000-000000000001/RLS-owner-upload.pdf'::text)$$,
+  'Tenant A owner can upload into their own private storage folder'
+);
+
+select throws_ok(
+  $$insert into storage.objects (bucket_id, name) values ('tenant-files', '20000000-0000-4000-8000-000000000002/RLS-forged-object.pdf') returning name$$,
+  '42501', null,
+  'Tenant A owner cannot upload a file into Tenant B storage'
 );
 
 select results_eq(
@@ -453,6 +480,12 @@ select results_eq(
   $$select feedback::text from public.content_reviews where feedback = 'RLS content review tenant B'$$,
   $$select null::text where false$$,
   'Tenant A member cannot read a Tenant B content review'
+);
+
+select results_eq(
+  $$select name::text from storage.objects where bucket_id = 'tenant-files' and name = '20000000-0000-4000-8000-000000000002/RLS-storage-object.pdf'$$,
+  $$select null::text where false$$,
+  'Tenant A member cannot read a Tenant B storage object'
 );
 
 select results_eq(
