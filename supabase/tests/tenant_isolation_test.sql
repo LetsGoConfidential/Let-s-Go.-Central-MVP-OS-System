@@ -1,6 +1,6 @@
 begin;
 
-select plan(72);
+select plan(75);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -95,6 +95,12 @@ values (
 set local role authenticated;
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
 
+select public.submit_content_review(
+  '20000000-0000-4000-8000-000000000002',
+  (select id from public.content_items where organization_id = '20000000-0000-4000-8000-000000000002' and title = 'RLS fixture content B'),
+  'comment', 'RLS content review tenant B'
+);
+
 insert into public.invoice_items (organization_id, invoice_id, description, quantity, unit_price)
 select i.organization_id, i.id, 'RLS item tenant B', 1, 1000
 from public.invoices i where i.organization_id = '20000000-0000-4000-8000-000000000002'
@@ -133,6 +139,12 @@ select results_eq(
   $$select body::text from public.task_comments where body = 'RLS task comment tenant B'$$,
   $$values ('RLS task comment tenant B'::text)$$,
   'Tenant B owner can read their own task comment'
+);
+
+select results_eq(
+  $$select feedback::text from public.content_reviews where feedback = 'RLS content review tenant B'$$,
+  $$values ('RLS content review tenant B'::text)$$,
+  'Tenant B owner can read their content review'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
@@ -225,6 +237,12 @@ select results_eq(
   $$select body::text from public.task_comments where body = 'RLS task comment tenant B'$$,
   $$select null::text where false$$,
   'Tenant A owner cannot read Tenant B task comments'
+);
+
+select results_eq(
+  $$select feedback::text from public.content_reviews where feedback = 'RLS content review tenant B'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read Tenant B content reviews'
 );
 
 select results_eq(
@@ -368,6 +386,12 @@ select results_eq(
   $$select body::text from public.task_comments where body = 'RLS task comment tenant B'$$,
   $$select null::text where false$$,
   'Tenant A member cannot read a Tenant B task comment'
+);
+
+select results_eq(
+  $$select feedback::text from public.content_reviews where feedback = 'RLS content review tenant B'$$,
+  $$select null::text where false$$,
+  'Tenant A member cannot read a Tenant B content review'
 );
 
 select results_eq(
