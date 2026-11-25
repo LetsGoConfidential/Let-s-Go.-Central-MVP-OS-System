@@ -1,6 +1,6 @@
 begin;
 
-select plan(53);
+select plan(62);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -57,6 +57,21 @@ values
 
 insert into public.deals (organization_id, lead_id, client_id, name, stage, value)
 values ('20000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000002', '40000000-0000-4000-8000-000000000002', 'RLS fixture tenant B deal', 'qualified', 10000);
+
+insert into public.ai_conversations (id, organization_id, user_id, title)
+values
+  ('61000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'RLS AI owner private'),
+  ('61000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'RLS AI member private'),
+  ('61000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'RLS AI tenant B private');
+
+insert into public.ai_messages (organization_id, conversation_id, role, content)
+values
+  ('20000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000001', 'user', 'RLS AI owner message'),
+  ('20000000-0000-4000-8000-000000000001', '61000000-0000-4000-8000-000000000002', 'user', 'RLS AI member message'),
+  ('20000000-0000-4000-8000-000000000002', '61000000-0000-4000-8000-000000000003', 'user', 'RLS AI tenant B message');
+
+insert into public.ai_action_drafts (id, organization_id, user_id, title, priority)
+values ('62000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'RLS AI tenant B draft', 'medium');
 
 set local role authenticated;
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
@@ -149,6 +164,36 @@ select results_eq(
   $$select amount::numeric from public.invoice_refunds where organization_id = '20000000-0000-4000-8000-000000000002'$$,
   $$select null::numeric where false$$,
   'Tenant A owner cannot read Tenant B invoice refunds'
+);
+
+select results_eq(
+  $$select title::text from public.ai_conversations where id = '61000000-0000-4000-8000-000000000001'$$,
+  $$values ('RLS AI owner private'::text)$$,
+  'AI conversation owner can read their own history'
+);
+
+select results_eq(
+  $$select title::text from public.ai_conversations where id = '61000000-0000-4000-8000-000000000002'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read a member private AI conversation'
+);
+
+select results_eq(
+  $$select title::text from public.ai_conversations where id = '61000000-0000-4000-8000-000000000003'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read a Tenant B AI conversation'
+);
+
+select results_eq(
+  $$select content::text from public.ai_messages where content = 'RLS AI tenant B message'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read a Tenant B AI message'
+);
+
+select results_eq(
+  $$select title::text from public.ai_action_drafts where id = '62000000-0000-4000-8000-000000000001'$$,
+  $$select null::text where false$$,
+  'Tenant A owner cannot read a Tenant B AI action draft'
 );
 
 select throws_ok(
@@ -251,6 +296,30 @@ select results_eq(
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select results_eq(
+  $$select title::text from public.ai_conversations where id = '61000000-0000-4000-8000-000000000002'$$,
+  $$values ('RLS AI member private'::text)$$,
+  'AI member can read their own private conversation'
+);
+
+select results_eq(
+  $$select content::text from public.ai_messages where conversation_id = '61000000-0000-4000-8000-000000000002'$$,
+  $$values ('RLS AI member message'::text)$$,
+  'AI member can read messages in their private conversation'
+);
+
+select results_eq(
+  $$select title::text from public.ai_conversations where id = '61000000-0000-4000-8000-000000000001'$$,
+  $$select null::text where false$$,
+  'AI member cannot read the owner private conversation'
+);
+
+select results_eq(
+  $$select content::text from public.ai_messages where content = 'RLS AI tenant B message'$$,
+  $$select null::text where false$$,
+  'AI member cannot read a Tenant B message'
+);
 
 select throws_ok(
   $$insert into public.clients (organization_id, name) values ('20000000-0000-4000-8000-000000000001', 'RLS fixture member-write') returning id$$,
