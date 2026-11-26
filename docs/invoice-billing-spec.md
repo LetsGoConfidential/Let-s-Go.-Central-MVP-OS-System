@@ -15,6 +15,14 @@ Keep this as one **Invoices & Billing** area, with inner sections:
 - Recurring: interval, start/end, next-run visibility, and draft generation; do not auto-send without explicit organization setup.
 - Reports: client aging, invoice/payment, project margin, tax/GST, and line-item views.
 
+### Sales document types from the supplied reference
+
+Expose a document-type switcher for **Quotation & Estimate**, **Proforma Invoice**, **Tax Invoice**, **Payment Receipt**, **Sales Order**, **Delivery Challan**, and **Credit Note**. These types have different lifecycle and accounting effects; a quotation is not an invoice, a receipt records payment, a challan records delivery, and a credit note adjusts an issued invoice. The current app already has invoice, payment, and credit-note records; other document types need their own states and permissions before they can be issued.
+
+The invoice editor should support grouped service sections, multi-line deliverables, per-row quantity/unit/rate, optional descriptions/images, and a clear subtotal → discount/charges → GST split → total → amount paid → balance. Payment presentation may include configured bank/UPI methods and a QR, but those details must come from approved organization settings and be absent from the preview's fictional data. A signature block, notes, attachments, tax summary, and ordered terms can be enabled per template.
+
+Recurring invoices need a cadence, first issue date, end condition, next-run preview, and an after-generation policy: create draft (default), create/save draft for review, or send via configured email/WhatsApp only after an explicit organization-level opt-in and recipient consent. Failed deliveries need visible retry/error status; do not silently mark a document sent.
+
 ## Common document fields
 
 Client/contact, organization issuer details, document number series, issue/due/valid-until date, PO/reference number, currency, service/item description, SKU/HSN/SAC and unit, quantity, rate, discount, tax configuration, extra charge, subtotal/total, payment instructions, notes, attachments, terms, signature, and status history. Tax rates and numbering formats are organization-configured; the UI must not imply tax/legal compliance without correct configuration.
