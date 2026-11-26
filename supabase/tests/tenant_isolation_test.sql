@@ -1,6 +1,6 @@
 begin;
 
-select plan(131);
+select plan(142);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -844,6 +844,78 @@ select results_eq(
   $$select public.review_leave_request('20000000-0000-4000-8000-000000000001', (select id from public.leave_requests where reason = 'RLS private leave fixture'), 'approved')$$,
   $$values (true)$$,
   'HR role can approve a pending leave request'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+
+select results_eq(
+  $$select public.set_leave_balance('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', extract(year from now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001'))::integer, 'Annual', 12, 1)$$,
+  $$values (true)$$,
+  'Owner can allocate annual leave to an employee'
+);
+
+select results_eq(
+  $$select public.set_leave_balance('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', extract(year from now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001'))::integer, 'Annual', 20, 0)$$,
+  $$values (true)$$,
+  'Owner can allocate a separate leave balance for themselves'
+);
+
+select results_eq(
+  $$select public.set_leave_balance('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', extract(year from now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001'))::integer, 'Annual', 15, 0)$$,
+  $$values (true)$$,
+  'Owner can allocate leave to a manager'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+
+select results_eq(
+  $$select count(*)::bigint from public.leave_balances where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (1::bigint)$$,
+  'Employee without HR permission can read only their own leave balance'
+);
+
+select results_eq(
+  $$select count(*)::bigint from public.leave_balances where member_id = '10000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Employee without HR permission cannot read an owner leave balance'
+);
+
+select throws_ok(
+  $$select public.set_leave_balance('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 2026, 'Annual', 30, 0)$$,
+  '42501', 'Not authorized to manage leave balances',
+  'Manager without HR leave permission cannot change a balance'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select results_eq(
+  $$select count(*)::bigint from public.leave_balances where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (3::bigint)$$,
+  'HR role can review all employee leave balances in its organization'
+);
+
+select results_eq(
+  $$select entitled_days::numeric, adjustment_days::numeric from public.leave_balances where member_id = '10000000-0000-4000-8000-000000000002' and leave_type = 'Annual'$$,
+  $$values (12::numeric, 1::numeric)$$,
+  'HR sees the employee allocation and adjustment values'
+);
+
+select results_eq(
+  $$select public.set_leave_balance('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', extract(year from now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001'))::integer, 'Annual', 14, -1)$$,
+  $$values (true)$$,
+  'HR can update an employee leave allocation'
+);
+
+select results_eq(
+  $$select entitled_days::numeric, adjustment_days::numeric from public.leave_balances where member_id = '10000000-0000-4000-8000-000000000002' and leave_type = 'Annual'$$,
+  $$values (14::numeric, -1::numeric)$$,
+  'Updated leave allocation is recorded'
+);
+
+select throws_ok(
+  $$select public.set_leave_balance('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 2026, 'Annual', 10, 0)$$,
+  '42501', 'Not authorized to manage leave balances',
+  'HR member cannot allocate leave in another tenant'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';

@@ -4,7 +4,44 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-function leaveUrl(org: string, state: string) { return `/workspace/leave?organization=${encodeURIComponent(org)}&${state}=1`; }
+function leaveUrl(org: string, state: string) {
+  const query = ["requested", "approved", "rejected", "balanceSaved"].includes(state)
+    ? `${state}=1`
+    : `error=${encodeURIComponent(state)}`;
+  return `/workspace/leave?organization=${encodeURIComponent(org)}&${query}`;
+}
+
+export async function setLeaveBalance(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const memberId = String(formData.get("member_id") ?? "");
+  const year = Number(formData.get("leave_year"));
+  const leaveType = String(formData.get("leave_type") ?? "");
+  const entitledDays = Number(formData.get("entitled_days"));
+  const adjustmentDays = Number(formData.get("adjustment_days") ?? 0);
+  const validTypes = ["Annual", "Sick", "Personal", "Unpaid", "Other"];
+  const validDays = (value: number) => Number.isFinite(value) && value >= 0 && value <= 366 && Number.isInteger(value * 2);
+  if (!organizationId || !memberId || !Number.isInteger(year) || !validTypes.includes(leaveType)
+    || !validDays(entitledDays) || !Number.isFinite(adjustmentDays) || adjustmentDays < -366
+    || adjustmentDays > 366 || !Number.isInteger(adjustmentDays * 2) || entitledDays + adjustmentDays < 0) {
+    redirect(leaveUrl(organizationId, "invalid"));
+  }
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: permitted } = await supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "hr.leave.manage" });
+  if (!permitted) redirect(leaveUrl(organizationId, "forbidden"));
+  const { error } = await supabase.rpc("set_leave_balance", {
+    target_org: organizationId,
+    target_member: memberId,
+    target_year: year,
+    target_leave_type: leaveType as "Annual" | "Sick" | "Personal" | "Unpaid" | "Other",
+    target_entitled_days: entitledDays,
+    target_adjustment_days: adjustmentDays,
+  });
+  if (error) redirect(leaveUrl(organizationId, "balance-failed"));
+  revalidatePath("/workspace/leave");
+  redirect(leaveUrl(organizationId, "balanceSaved"));
+}
 
 export async function requestLeave(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
