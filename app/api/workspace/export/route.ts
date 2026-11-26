@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 const exportTables = [
   "org_members", "roles", "role_assignments", "org_invitations", "clients", "contacts", "leads", "deals",
-  "projects", "tasks", "task_comments", "content_items", "content_reviews", "team_performance_reviews",
+  "projects", "tasks", "task_comments", "content_items", "content_reviews", "team_performance_reviews", "employee_kpi_goals",
   "invoices", "invoice_items", "invoice_payments", "invoice_credits", "invoice_refunds", "expenses",
   "organization_files", "automation_rules", "automation_runs", "automation_run_attempts", "integrations",
   "audit_logs",

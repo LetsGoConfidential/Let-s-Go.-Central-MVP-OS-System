@@ -1,6 +1,6 @@
 begin;
 
-select plan(97);
+select plan(103);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -27,6 +27,11 @@ insert into public.org_invitations (organization_id, email, user_id, role, statu
 values
   ('20000000-0000-4000-8000-000000000001', 'rls-invite-a@example.test', '10000000-0000-4000-8000-000000000004', 'member', 'pending', '10000000-0000-4000-8000-000000000001'),
   ('20000000-0000-4000-8000-000000000002', 'rls-invite-b@example.test', '10000000-0000-4000-8000-000000000002', 'member', 'pending', '10000000-0000-4000-8000-000000000004');
+
+insert into public.employee_kpi_goals (organization_id, member_id, metric_key, title, target, unit, period_start, period_end, created_by, updated_by)
+values
+  ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'tasks_completed', 'RLS Tenant A monthly tasks', 10, 'count', '2026-11-01', '2026-11-30', '10000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001'),
+  ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'tasks_completed', 'RLS Tenant B monthly tasks', 5, 'count', '2026-11-01', '2026-11-30', '10000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000004');
 
 insert into public.clients (id, organization_id, name)
 values
@@ -165,6 +170,12 @@ select results_eq(
 );
 
 select results_eq(
+  $$select title::text from public.employee_kpi_goals where member_id = '10000000-0000-4000-8000-000000000004'$$,
+  $$values ('RLS Tenant B monthly tasks'::text)$$,
+  'Tenant B owner can read their employee KPI goal'
+);
+
+select results_eq(
   $$select body::text from public.task_comments where body = 'RLS task comment tenant B'$$,
   $$values ('RLS task comment tenant B'::text)$$,
   'Tenant B owner can read their own task comment'
@@ -240,6 +251,12 @@ select results_eq(
   $$select email::text from public.org_invitations where email = 'rls-invite-b@example.test'$$,
   $$select null::text where false$$,
   'Tenant A owner cannot read a Tenant B invitation'
+);
+
+select results_eq(
+  $$select title::text from public.employee_kpi_goals where title like 'RLS Tenant % monthly tasks' order by title$$,
+  $$values ('RLS Tenant A monthly tasks'::text)$$,
+  'Tenant A owner cannot read Tenant B employee KPI goals'
 );
 
 select results_eq(
@@ -487,6 +504,18 @@ select results_eq(
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
 
+select results_eq(
+  $$select title::text from public.employee_kpi_goals where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$values ('RLS Tenant A monthly tasks'::text)$$,
+  'Employee can read their own KPI goal'
+);
+
+select throws_ok(
+  $$insert into public.employee_kpi_goals (organization_id, member_id, metric_key, title, target, unit, period_start, period_end) values ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'tasks_completed', 'RLS member-created goal', 20, 'count', '2026-12-01', '2026-12-31') returning id$$,
+  '42501', null,
+  'Employee cannot set their own KPI target'
+);
+
 select throws_ok(
   $$select public.revoke_org_invitation('20000000-0000-4000-8000-000000000001', (select id from public.org_invitations where email = 'rls-invite-a@example.test'))$$,
   '42501', 'Not authorized to manage organization invitations',
@@ -675,6 +704,12 @@ select results_eq(
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
 
+select results_eq(
+  $$select title::text from public.employee_kpi_goals where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$values ('RLS Tenant A monthly tasks'::text)$$,
+  'Authorized manager can read the employee KPI goal'
+);
+
 select throws_ok(
   $$select public.revoke_org_invitation('20000000-0000-4000-8000-000000000001', (select id from public.org_invitations where email = 'rls-invite-a@example.test'))$$,
   '42501', 'Not authorized to manage organization invitations',
@@ -790,6 +825,12 @@ select results_eq(
   $$select public.revoke_org_invitation('20000000-0000-4000-8000-000000000001', (select id from public.org_invitations where email = 'rls-invite-a@example.test'))$$,
   $$values (true)$$,
   'Owner can revoke a pending invitation'
+);
+
+select results_eq(
+  $$insert into public.employee_kpi_goals (organization_id, member_id, metric_key, title, target, unit, period_start, period_end) values ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'tasks_completed', 'RLS owner-created KPI goal', 12, 'count', '2026-12-01', '2026-12-31') returning title::text$$,
+  $$values ('RLS owner-created KPI goal'::text)$$,
+  'Organization owner can create an employee KPI goal'
 );
 
 select * from finish();

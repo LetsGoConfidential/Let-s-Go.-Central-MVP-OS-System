@@ -140,3 +140,34 @@ export async function saveTeamPerformanceReview(formData: FormData) {
   revalidatePath("/workspace/team"); revalidatePath(`/workspace/team/${memberId}`);
   redirect(`${target}&saved=1`);
 }
+
+export async function saveEmployeeKpiGoal(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const memberId = String(formData.get("member_id") ?? "");
+  const metricKey = String(formData.get("metric_key") ?? "");
+  const title = String(formData.get("title") ?? "").trim();
+  const unit = metricKey === "tasks_on_time" ? "percent" : "count";
+  const targetValue = Number(formData.get("target"));
+  const periodStart = String(formData.get("period_start") ?? "");
+  const periodEnd = String(formData.get("period_end") ?? "");
+  const target = `/workspace/team/${encodeURIComponent(memberId)}?organization=${encodeURIComponent(organizationId)}`;
+  const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+  if (!organizationId || !memberId || !["tasks_completed", "tasks_on_time", "leads_won"].includes(metricKey) || title.length < 2 || title.length > 120 || !Number.isFinite(targetValue) || targetValue <= 0 || (metricKey === "tasks_on_time" && targetValue > 100) || !validDate(periodStart) || !validDate(periodEnd) || periodEnd < periodStart) redirect(`${target}&error=kpi-invalid`);
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: allowed } = await supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "team.performance.manage" });
+  if (!allowed) redirect(`${target}&error=kpi-forbidden`);
+  const { data: member } = await supabase.from("org_members").select("user_id").eq("organization_id", organizationId).eq("user_id", memberId).in("status", ["active", "suspended"]).neq("role", "client").maybeSingle();
+  if (!member) redirect(`${target}&error=kpi-invalid`);
+  const { error } = await supabase.from("employee_kpi_goals").upsert({
+    organization_id: organizationId, member_id: memberId,
+    metric_key: metricKey as "tasks_completed" | "tasks_on_time" | "leads_won",
+    title, target: targetValue, unit, period_start: periodStart, period_end: periodEnd,
+    updated_by: user.id,
+  }, { onConflict: "organization_id,member_id,metric_key,period_start" });
+  if (error) redirect(`${target}&error=kpi-save`);
+  revalidatePath("/workspace/team"); revalidatePath(`/workspace/team/${memberId}`);
+  redirect(`${target}&kpi_saved=1`);
+}
