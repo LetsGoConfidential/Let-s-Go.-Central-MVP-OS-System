@@ -16,8 +16,23 @@ Let’s Go Central is an agency operating system for sales, client management, p
 2. Run `pnpm install`.
 3. Copy `.env.example` to `.env.local` and add the Supabase project URL and publishable key.
 4. Run `pnpm dlx supabase start` for local services.
-5. Run `pnpm dlx supabase db reset` to apply migrations 001-027 and insert the Let’s Go Digitals starter tenant.
+5. Run `pnpm dlx supabase db reset` to apply all migrations and insert the Let’s Go Digitals starter tenant.
 6. Run `pnpm dev` and open `http://localhost:3000`.
+
+### Local role demo logins
+
+After starting local Supabase and resetting the database, copy the **local** API URL and `service_role` key shown by `pnpm dlx supabase status` into `.env.local` as `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. Then run `pnpm demo:seed`. The seeder refuses non-local Supabase hosts and creates these accounts in the seeded Let’s Go Digitals workspace:
+
+| Login ID | Demo view |
+| --- | --- |
+| `founder@letsgo-demo.test` | Founder / owner, full workspace and finance access |
+| `hr@letsgo-demo.test` | HR, attendance, leave, people invitations, KPI/performance |
+| `sales@letsgo-demo.test` | Sales workspace access, no finance permission |
+| `manager@letsgo-demo.test` | Manager workspace access, no owner-only finance or HR permissions |
+| `production@letsgo-demo.test` | Production workspace access, no finance permission |
+| `employee@letsgo-demo.test` | Employee, read-only workspace access |
+
+All six local accounts use password `CentralDemo!2026`. Sign in at `http://localhost:3000/login`. These are synthetic local fixtures, not deployable customer credentials. Do not copy them into hosted Supabase. The employee is read-only because task-only write permissions are not implemented yet; the existing permission model does not yet isolate every department's records from other members of the same organization.
 
 Run `pnpm preflight` before starting local services to check required environment values, migration ordering, Node.js, Supabase CLI, and Docker. It reports variable names and setup status only; it never prints secret values. Slack and AI values remain optional unless you enable those integrations.
 
