@@ -1,6 +1,6 @@
 begin;
 
-select plan(112);
+select plan(118);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -892,6 +892,47 @@ select results_eq(
   $$select public.set_member_department('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'Sales')$$,
   $$values (true)$$,
   'Organization owner can assign a department to an employee'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
+
+select is(
+  (public.record_attendance('20000000-0000-4000-8000-000000000001', 'check_in')).member_id,
+  '10000000-0000-4000-8000-000000000004'::uuid,
+  'Employee can check in for their own attendance'
+);
+
+select is(
+  (public.record_attendance('20000000-0000-4000-8000-000000000001', 'check_in')).member_id,
+  '10000000-0000-4000-8000-000000000004'::uuid,
+  'Repeated check-in is idempotent for the same organization day'
+);
+
+select is(
+  (select count(*)::integer from public.attendance_days where organization_id = '20000000-0000-4000-8000-000000000001' and member_id = '10000000-0000-4000-8000-000000000004'),
+  1,
+  'Attendance has only one row per member and work date'
+);
+
+select ok(
+  (public.record_attendance('20000000-0000-4000-8000-000000000001', 'check_out')).checked_out_at is not null,
+  'Employee check-out records its timestamp'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select is(
+  public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.attendance.manage'),
+  false,
+  'Manager without the HR attendance permission cannot review team attendance'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+
+select is(
+  (select count(*)::integer from public.attendance_days where organization_id = '20000000-0000-4000-8000-000000000001'),
+  1,
+  'Organization owner can review team attendance'
 );
 
 select * from finish();
