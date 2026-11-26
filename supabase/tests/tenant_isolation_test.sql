@@ -1,6 +1,6 @@
 begin;
 
-select plan(186);
+select plan(199);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -1388,6 +1388,55 @@ select results_eq(
   $$select count(*)::bigint from public.payroll_entries where organization_id = '20000000-0000-4000-8000-000000000001'$$,
   $$values (0::bigint)$$,
   'Other tenant member cannot read payroll entries'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+
+select ok(public.create_quotation_with_item(
+  '20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001',
+  'RLS-QUOTE-001', 'INR', 180, current_date, current_date + 14,
+  'Monthly content retainer', 2, 1000
+) is not null, 'Finance owner can create an itemized quotation draft');
+
+select results_eq(
+  $$select status::text, subtotal::numeric, tax::numeric, total::numeric from public.quotations where quotation_number = 'RLS-QUOTE-001'$$,
+  $$values ('draft'::text, 2000::numeric, 180::numeric, 2180::numeric)$$,
+  'Quotation subtotal and total are computed from the line item'
+);
+select throws_ok(
+  $$update public.quotations set status = 'accepted' where quotation_number = 'RLS-QUOTE-001'$$,
+  '22023', 'Invalid quotation transition', 'Quotation status cannot skip the sent stage'
+);
+
+select ok(public.transition_quotation('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-QUOTE-001'), 'send'), 'Finance owner can mark a draft quotation sent');
+select results_eq($$select status::text from public.quotations where quotation_number = 'RLS-QUOTE-001'$$, $$values ('sent'::text)$$, 'Sent quotation has a distinct lifecycle status');
+select ok(public.transition_quotation('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-QUOTE-001'), 'accept'), 'Finance owner can record acceptance for a valid sent quotation');
+select results_eq($$select status::text from public.quotations where quotation_number = 'RLS-QUOTE-001'$$, $$values ('accepted'::text)$$, 'Accepted quotation is ready for conversion');
+
+select ok(public.convert_quotation_to_invoice('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-QUOTE-001'), 'RLS-QUOTE-INVOICE-001', current_date, current_date + 7) is not null, 'Accepted quotation converts to a draft invoice');
+select results_eq(
+  $$select i.id::text from public.invoices i where i.invoice_number = 'RLS-QUOTE-INVOICE-001'$$,
+  $$select public.convert_quotation_to_invoice('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-QUOTE-001'), 'IGNORED-ON-RETRY', current_date, current_date + 7)::text$$,
+  'Repeated conversion returns the existing invoice instead of duplicating it'
+);
+select results_eq(
+  $$select i.status::text, i.subtotal::numeric, i.tax::numeric, i.total::numeric, count(ii.id)::bigint from public.invoices i join public.invoice_items ii on ii.organization_id = i.organization_id and ii.invoice_id = i.id where i.invoice_number = 'RLS-QUOTE-INVOICE-001' group by i.id$$,
+  $$values ('draft'::text, 2000::numeric, 180::numeric, 2180::numeric, 1::bigint)$$,
+  'Converted invoice preserves quote tax, amount, and line items'
+);
+select results_eq($$select status::text, converted_invoice_id::text is not null from public.quotations where quotation_number = 'RLS-QUOTE-001'$$, $$values ('converted'::text, true)$$, 'Quotation links to its converted invoice');
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+select throws_ok(
+  $$select public.create_quotation_with_item('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS-QUOTE-MEMBER', 'INR', 0, current_date, current_date + 14, 'Not allowed', 1, 1)$$,
+  '42501', 'Finance permission required', 'Employee cannot create quotations without finance permission'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
+select results_eq(
+  $$select count(*)::bigint from public.quotations where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Another tenant cannot read quotations or totals'
 );
 
 select * from finish();

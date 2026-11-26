@@ -55,6 +55,84 @@ export async function createInvoice(formData: FormData) {
   redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&created=invoice`);
 }
 
+export async function createQuotation(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const clientId = String(formData.get("client_id") ?? "");
+  const quotationNumber = String(formData.get("quotation_number") ?? "").trim();
+  const currency = String(formData.get("currency") ?? "INR").toUpperCase();
+  const description = String(formData.get("line_description") ?? "").trim();
+  const quantity = Number(formData.get("quantity") ?? 0);
+  const unitPrice = Number(formData.get("unit_price") ?? -1);
+  const tax = Number(formData.get("tax") ?? 0);
+  const issueDate = String(formData.get("issue_date") ?? "");
+  const validUntil = String(formData.get("valid_until") ?? "");
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!organizationId || !clientId || quotationNumber.length < 2 || quotationNumber.length > 40
+    || !/^[A-Z]{3}$/.test(currency) || description.length < 1 || description.length > 240
+    || !Number.isFinite(quantity) || quantity <= 0 || quantity > 9999999999
+    || !Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 999999999999.99
+    || quantity * unitPrice > 999999999999.99 || !Number.isFinite(tax) || tax < 0 || tax > 999999999999.99
+    || quantity * unitPrice + tax > 999999999999.99 || !datePattern.test(issueDate)
+    || !datePattern.test(validUntil) || validUntil < issueDate) fail(organizationId);
+
+  const supabase = await authorizedFinanceClient(organizationId);
+  const { error } = await supabase.rpc("create_quotation_with_item", {
+    target_org: organizationId,
+    target_client: clientId,
+    new_quotation_number: quotationNumber,
+    quote_currency: currency,
+    quote_tax: tax,
+    quote_issue_date: issueDate,
+    quote_valid_until: validUntil,
+    line_description: description,
+    line_quantity: quantity,
+    line_unit_price: unitPrice,
+    target_lead: null,
+  });
+  if (error) fail(organizationId, "save");
+  revalidatePath("/workspace/finance");
+  redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&created=quotation`);
+}
+
+export async function transitionQuotation(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const quotationId = String(formData.get("quotation_id") ?? "");
+  const decision = String(formData.get("decision") ?? "");
+  if (!organizationId || !quotationId || !["send", "accept", "decline"].includes(decision)) fail(organizationId);
+  const supabase = await authorizedFinanceClient(organizationId);
+  const { error } = await supabase.rpc("transition_quotation", {
+    target_org: organizationId,
+    target_quote: quotationId,
+    decision,
+  });
+  if (error) fail(organizationId, "save");
+  revalidatePath("/workspace/finance");
+  redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&updated=quotation`);
+}
+
+export async function convertQuotationToInvoice(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const quotationId = String(formData.get("quotation_id") ?? "");
+  const invoiceNumber = String(formData.get("invoice_number") ?? "").trim();
+  const issueDate = String(formData.get("issue_date") ?? "");
+  const dueDate = String(formData.get("due_date") ?? "");
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!organizationId || !quotationId || invoiceNumber.length < 2 || invoiceNumber.length > 40
+    || !datePattern.test(issueDate) || !datePattern.test(dueDate) || dueDate < issueDate) fail(organizationId);
+  const supabase = await authorizedFinanceClient(organizationId);
+  const { error } = await supabase.rpc("convert_quotation_to_invoice", {
+    target_org: organizationId,
+    target_quote: quotationId,
+    new_invoice_number: invoiceNumber,
+    new_issue_date: issueDate,
+    new_due_date: dueDate,
+  });
+  if (error) fail(organizationId, "save");
+  revalidatePath("/workspace");
+  revalidatePath("/workspace/finance");
+  redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&created=invoice`);
+}
+
 export async function markInvoiceSent(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   const invoiceId = String(formData.get("invoice_id") ?? "");

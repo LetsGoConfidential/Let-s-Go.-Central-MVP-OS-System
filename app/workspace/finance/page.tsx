@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { FileText, ListTodo, Users, WalletCards } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { createCreditNote, createExpense, createInvoice, createInvoiceRefund, markInvoiceSent, recordPayment } from "./actions";
+import { convertQuotationToInvoice, createCreditNote, createExpense, createInvoice, createInvoiceRefund, createQuotation, markInvoiceSent, recordPayment, transitionQuotation } from "./actions";
 
 type Membership = { organization_id: string; role: string; organizations: { name: string; slug: string; currency: string; timezone: string } | { name: string; slug: string; currency: string; timezone: string }[] | null };
 function orgInfo(membership: Membership) { return Array.isArray(membership.organizations) ? membership.organizations[0] : membership.organizations; }
@@ -27,7 +27,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const defaultCurrency = organization?.currency?.trim() ?? "INR";
   const organizationTimezone = organization?.timezone ?? "Asia/Kolkata";
 
-  const [{ data: invoices }, { data: clients }, { data: expenses }, { data: summary }, { data: trend }, { data: aging }, { data: canManage }] = await Promise.all([
+  const [{ data: invoices }, { data: clients }, { data: expenses }, { data: summary }, { data: trend }, { data: aging }, { data: canManage }, { data: quotations }] = await Promise.all([
     supabase.from("invoices").select("id,invoice_number,status,currency,total,credit_total,amount_paid,issue_date,due_date,clients(name)").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(100),
     supabase.from("clients").select("id,name").eq("organization_id", organizationId).eq("status", "active").order("name"),
     supabase.from("expenses").select("id,description,category,amount,currency,spent_on").eq("organization_id", organizationId).order("spent_on", { ascending: false }).limit(50),
@@ -35,7 +35,12 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
     supabase.rpc("finance_monthly_trend", { target_org: organizationId, month_count: 6 }),
     supabase.rpc("receivables_aging", { target_org: organizationId }),
     supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "finance.manage" }),
+    supabase.from("quotations").select("id,quotation_number,status,currency,total,issue_date,valid_until,clients(name)").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(100),
   ]);
+  const quotationIds = (quotations ?? []).map((quotation) => quotation.id);
+  const { data: quotationItems } = quotationIds.length
+    ? await supabase.from("quotation_items").select("id,quotation_id,description,quantity,unit_price,line_total").eq("organization_id", organizationId).in("quotation_id", quotationIds).order("created_at")
+    : { data: [] };
   const invoiceIds = (invoices ?? []).map((invoice) => invoice.id);
   const [{ data: invoiceItems }, { data: invoiceCredits }, { data: payments }, { data: invoiceRefunds }] = invoiceIds.length
     ? await Promise.all([
@@ -49,9 +54,9 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const messages: Record<string, string> = {
     forbidden: "Your role does not have permission to manage finance records.",
     invalid: "Check the required fields, amounts, dates, and invoice balance.",
-    save: "That finance record could not be saved. Please review the details and try again.",
+    save: "That finance record could not be saved. Check that the quotation is accepted and still valid before converting it.",
   };
-  const createdLabels: Record<string, string> = { invoice: "Draft invoice saved.", payment: "Payment recorded and invoice balance reconciled.", expense: "Expense saved.", credit: "Credit note issued and the receivable updated.", refund: "Refund recorded and the invoice balance reconciled." };
+  const createdLabels: Record<string, string> = { invoice: "Draft invoice saved.", quotation: "Quotation draft saved.", payment: "Payment recorded and invoice balance reconciled.", expense: "Expense saved.", credit: "Credit note issued and the receivable updated.", refund: "Refund recorded and the invoice balance reconciled." };
   const invoiceClientName = (invoice: NonNullable<typeof invoices>[number]) => Array.isArray(invoice.clients) ? invoice.clients[0]?.name ?? "Client" : invoice.clients?.name ?? "Client";
 
   return <main className="app-shell">
@@ -87,7 +92,20 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
             </td>}</tr>;
           })}</tbody></table></div> : <div className="empty-state lead-empty"><b>No invoices yet</b><span>Create a draft invoice for one of your active clients.</span></div>}
         </section>
+        <section className="card finance-list-card"><div className="leads-heading"><div><h2>Quotations & estimates</h2><p>{quotations?.length ?? 0} recent quotations · accepted quotes can be converted to an invoice once</p></div></div>
+          <p className="finance-empty">Status updates are recorded internally. Email/WhatsApp delivery and the customer acceptance link are not connected yet.</p>
+          {quotations?.length ? <div className="table-scroll"><table className="lead-table finance-table"><thead><tr><th>Quotation</th><th>Client</th><th>Status</th><th>Value</th><th>Valid until</th>{canManage && <th>Actions</th>}</tr></thead><tbody>{quotations.map((quotation) => {
+            const client = Array.isArray(quotation.clients) ? quotation.clients[0]?.name ?? "Client" : quotation.clients?.name ?? "Client";
+            const lines = (quotationItems ?? []).filter((item) => item.quotation_id === quotation.id);
+            return <tr key={quotation.id}><td><b>{quotation.quotation_number}</b>{lines.map((item) => <small className="invoice-item-line" key={item.id}>{item.description} · {Number(item.quantity)} × {money(quotation.currency, Number(item.unit_price))}</small>)}</td><td>{client}</td><td><span className={`stage-pill invoice-${quotation.status}`}>{quotation.status}</span></td><td>{money(quotation.currency, Number(quotation.total))}</td><td>{quotation.valid_until}</td>{canManage && <td>
+              {quotation.status === "draft" && <form action={transitionQuotation}><input type="hidden" name="organization_id" value={organizationId}/><input type="hidden" name="quotation_id" value={quotation.id}/><input type="hidden" name="decision" value="send"/><button className="finance-action-button" type="submit">Mark sent</button></form>}
+              {quotation.status === "sent" && <div className="quotation-action-stack">{["accept", "decline"].map((decision) => <form action={transitionQuotation} key={decision}><input type="hidden" name="organization_id" value={organizationId}/><input type="hidden" name="quotation_id" value={quotation.id}/><input type="hidden" name="decision" value={decision}/><button className="finance-action-button" type="submit">Mark {decision === "accept" ? "accepted" : "declined"}</button></form>)}</div>}
+              {quotation.status === "accepted" && <form action={convertQuotationToInvoice} className="quotation-convert-form"><input type="hidden" name="organization_id" value={organizationId}/><input type="hidden" name="quotation_id" value={quotation.id}/><input name="invoice_number" aria-label={`Invoice number for ${quotation.quotation_number}`} maxLength={40} required placeholder="Invoice #"/><input name="issue_date" aria-label="Invoice issue date" type="date" defaultValue={localDate(organizationTimezone)} required/><input name="due_date" aria-label="Invoice due date" type="date" defaultValue={localDate(organizationTimezone, 7)} required/><button className="finance-action-button" type="submit">Convert</button></form>}
+            </td>}</tr>;
+          })}</tbody></table></div> : <div className="empty-state lead-empty"><b>No quotations yet</b><span>Create a quote draft, then record its sent and acceptance status.</span></div>}
+        </section>
         <section className="finance-forms-grid">
+          {canManage && <article className="card new-lead-card"><div className="leads-heading"><div><h2>Create a quotation</h2><p>Start with a draft estimate. Tax is entered as an amount; configure verified tax rules before issuing customer documents.</p></div></div>{clients?.length ? <form action={createQuotation} className="finance-form"><input type="hidden" name="organization_id" value={organizationId}/><label>Client<select name="client_id" required defaultValue=""><option value="" disabled>Select a client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label>Quotation number<input name="quotation_number" maxLength={40} required placeholder="LG-Q-2026-001"/></label><label>Currency<input name="currency" maxLength={3} minLength={3} defaultValue={defaultCurrency} required/></label><label>Service / deliverable<input name="line_description" maxLength={240} required placeholder="Monthly social media management"/></label><label>Quantity<input name="quantity" type="number" min="0.01" step="0.01" defaultValue="1" required/></label><label>Unit price<input name="unit_price" type="number" min="0" step="0.01" required/></label><label>Tax amount<input name="tax" type="number" min="0" step="0.01" defaultValue="0" required/></label><label>Issue date<input name="issue_date" type="date" defaultValue={localDate(organizationTimezone)} required/></label><label>Valid until<input name="valid_until" type="date" defaultValue={localDate(organizationTimezone, 14)} required/></label><button className="primary-button" type="submit">Save quotation draft</button></form> : <div className="finance-empty">Add an active client before creating a quotation.</div>}</article>}
           {canManage && <article className="card new-lead-card"><div className="leads-heading"><div><h2>Record an invoice</h2><p>Save as a draft, then mark it sent when it has been issued.</p></div></div>{clients?.length ? <form action={createInvoice} className="finance-form"><input type="hidden" name="organization_id" value={organizationId}/><label>Client<select name="client_id" required defaultValue=""><option value="" disabled>Select a client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select></label><label>Invoice number<input name="invoice_number" maxLength={40} required placeholder="LG-2026-001"/></label><label>Currency<input name="currency" maxLength={3} minLength={3} defaultValue={defaultCurrency} required/></label><label>Line item<input name="line_description" maxLength={240} required placeholder="Monthly social media management"/></label><label>Quantity<input name="quantity" type="number" min="0.01" step="0.01" defaultValue="1" required/></label><label>Unit price<input name="unit_price" type="number" min="0" step="0.01" required/></label><label>Tax<input name="tax" type="number" min="0" step="0.01" defaultValue="0" required/></label><label>Issue date<input name="issue_date" type="date" defaultValue={localDate(organizationTimezone)} required/></label><label>Due date<input name="due_date" type="date" defaultValue={localDate(organizationTimezone, 7)} required/></label><button className="primary-button" type="submit">Save draft</button></form> : <div className="finance-empty">Add an active client before recording an invoice.</div>}</article>}
           {canManage && <article className="card new-lead-card"><div className="leads-heading"><div><h2>Record an expense</h2><p>Expenses are summarized by currency.</p></div></div><form action={createExpense} className="finance-form"><input type="hidden" name="organization_id" value={organizationId}/><label>Description<input name="description" maxLength={180} required placeholder="Software subscription"/></label><label>Category<input name="category" maxLength={60} required placeholder="Tools, payroll, travel…"/></label><label>Amount<input name="amount" type="number" min="0.01" step="0.01" required/></label><label>Currency<input name="currency" maxLength={3} minLength={3} defaultValue={defaultCurrency} required/></label><label>Date<input name="spent_on" type="date" defaultValue={localDate(organizationTimezone)}/></label><button className="primary-button" type="submit">Save expense</button></form></article>}
         </section>
