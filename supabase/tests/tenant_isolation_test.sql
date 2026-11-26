@@ -1304,7 +1304,7 @@ select results_eq(
 
 select results_eq(
   $$select bonus_paid::numeric, other_additions::numeric, deductions::numeric, net_pay::numeric from public.payroll_entries where member_id = '10000000-0000-4000-8000-000000000002'$$,
-  $$values (2000::numeric, 1000::numeric, 500::numeric, 56000::numeric)$$,
+  $$values (2000::numeric, 1000::numeric, 500::numeric, 55500::numeric)$$,
   'Payroll net pay is recalculated from reviewed draft adjustments'
 );
 

@@ -19,7 +19,7 @@ const money = (value: number, currency: string) => {
 const messages: Record<string, string> = {
   saved: "Compensation history saved and audit logged.",
   invalid: "Check the employee, effective date, amounts, currency, and reason.",
-  forbidden: "Your role cannot manage employee compensation.",
+  forbidden: "Your role cannot manage compensation or payroll runs.",
   "save-failed": "This compensation change could not be saved. The effective date must come after the current record.",
   "run-created": "Draft payroll run created from compensation effective on the first day of the selected month.",
   duplicate: "A payroll run already exists for that month.",
@@ -32,6 +32,7 @@ const messages: Record<string, string> = {
   paid: "Payroll run marked paid. The system records this status but does not move money.",
   "invalid-transition": "This payroll status change is not valid.",
   "transition-failed": "Payroll status could not be changed. Check the run is in the required state.",
+  statement: "That pay statement is unavailable or has not been published yet.",
 };
 
 export default async function PayrollPage({ searchParams }: { searchParams: Promise<Record<string, string | undefined> & { organization?: string; run?: string }> }) {
