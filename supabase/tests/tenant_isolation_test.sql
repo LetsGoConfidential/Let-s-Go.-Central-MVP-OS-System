@@ -1,6 +1,6 @@
 begin;
 
-select plan(119);
+select plan(120);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -902,20 +902,28 @@ select results_eq(
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
 
+select throws_ok(
+  $$select public.record_attendance('20000000-0000-4000-8000-000000000001', 'check_in')$$,
+  '42501', 'Not authorized to record attendance',
+  'Tenant B employee cannot record attendance in Tenant A'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
 select is(
   (public.record_attendance('20000000-0000-4000-8000-000000000001', 'check_in')).member_id,
-  '10000000-0000-4000-8000-000000000004'::uuid,
+  '10000000-0000-4000-8000-000000000002'::uuid,
   'Employee can check in for their own attendance'
 );
 
 select is(
   (public.record_attendance('20000000-0000-4000-8000-000000000001', 'check_in')).member_id,
-  '10000000-0000-4000-8000-000000000004'::uuid,
+  '10000000-0000-4000-8000-000000000002'::uuid,
   'Repeated check-in is idempotent for the same organization day'
 );
 
 select is(
-  (select count(*)::integer from public.attendance_days where organization_id = '20000000-0000-4000-8000-000000000001' and member_id = '10000000-0000-4000-8000-000000000004'),
+  (select count(*)::integer from public.attendance_days where organization_id = '20000000-0000-4000-8000-000000000001' and member_id = '10000000-0000-4000-8000-000000000002'),
   1,
   'Attendance has only one row per member and work date'
 );
@@ -925,7 +933,7 @@ select ok(
   'Employee check-out records its timestamp'
 );
 
-set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
 
 select is(
   public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.attendance.manage'),
