@@ -1,0 +1,34 @@
+import { redirect } from "next/navigation";
+import { CalendarDays } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { requestLeave, reviewLeaveRequest } from "./actions";
+
+type Membership = { organization_id: string; role: string; organizations: { name: string } | { name: string }[] | null };
+function orgName(row: Membership) { return (Array.isArray(row.organizations) ? row.organizations[0] : row.organizations)?.name ?? "Agency workspace"; }
+const dateLabel = (value: string) => new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}T12:00:00Z`));
+
+export default async function LeavePage({ searchParams }: { searchParams: Promise<{ organization?: string; requested?: string; approved?: string; rejected?: string; error?: string }> }) {
+  const params = await searchParams;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: membershipsRaw } = await supabase.from("org_members").select("organization_id,role,organizations(name)").eq("user_id", user.id).eq("status", "active");
+  const memberships = (membershipsRaw ?? []) as unknown as Membership[];
+  const membership = memberships.find((row) => row.organization_id === params.organization) ?? memberships[0];
+  if (!membership) redirect("/workspace");
+  const organizationId = membership.organization_id;
+  const [{ data: canReview }, { data: requests }] = await Promise.all([
+    supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "hr.leave.manage" }),
+    supabase.from("leave_requests").select("id,member_id,leave_type,start_date,end_date,reason,status,created_at").eq("organization_id", organizationId).order("created_at", { ascending: false }).limit(100),
+  ]);
+  const ids = [...new Set((requests ?? []).map((row) => row.member_id))];
+  const { data: profiles } = ids.length ? await supabase.from("profiles").select("id,full_name").in("id", ids) : { data: [] };
+  const names = new Map((profiles ?? []).map((profile) => [profile.id, profile.full_name || "Team member"]));
+  const message = params.requested ? "Your leave request was sent for review." : params.approved ? "Leave request approved." : params.rejected ? "Leave request declined." : params.error === "forbidden" ? "Your role cannot review leave requests." : params.error ? "That leave request could not be saved. Check the dates and try again." : null;
+  return <main className="app-shell"><aside className="sidebar"><a className="brand" href="/workspace"><span className="brand-name">LET’S GO.</span><span className="brand-sub">CENTRAL OS</span></a><div className="org-switch"><span className="org-mark">LG</span><span className="org-copy"><b>{orgName(membership)}</b><small>{membership.role}</small></span></div><div className="nav-caption">WORKSPACE</div><nav aria-label="Main navigation"><a className="nav-link" href={`/workspace?organization=${organizationId}`}>Overview</a><a className="nav-link" href={`/workspace/tasks?organization=${organizationId}`}>My tasks</a><a className="nav-link" href={`/workspace/team?organization=${organizationId}`}>Team</a><a className="nav-link active" href={`/workspace/leave?organization=${organizationId}`}>Leave & time off</a></nav><div className="sidebar-bottom"><div className="profile"><div className="avatar avatar-dark">{(user.email ?? "LG").slice(0, 2).toUpperCase()}</div><div><b>{user.email}</b><small>{membership.role}</small></div><form action="/auth/signout" method="post"><button className="signout-inline" aria-label="Sign out">↗</button></form></div></div></aside>
+  <section className="main-area"><header className="topbar"><div className="breadcrumbs"><span>{orgName(membership)}</span><span className="slash">/</span><b>Leave & time off</b><span className="live-label">People operations</span></div><span className="signed-in-as">{user.email}</span></header><div id="main-content" tabIndex={-1} className="content-wrap"><section className="welcome-row"><div><div className="eyebrow">EMPLOYEE SELF-SERVICE</div><h1>Leave & time off</h1><p>Request time off and follow its approval status. Leave balances and payroll integration are not enabled yet.</p></div><CalendarDays size={20}/></section>
+  {message && <div className={params.requested || params.approved || params.rejected ? "success-banner" : "auth-error"} role="status">{message}</div>}
+  <div className="team-detail-grid"><section className="card new-lead-card"><div className="leads-heading"><div><h2>Request leave</h2><p>Your manager or an authorized HR teammate will review this request.</p></div></div><form action={requestLeave} className="lead-form"><input type="hidden" name="organization_id" value={organizationId}/><label>Leave type<select name="leave_type" defaultValue="Annual"><option>Annual</option><option>Sick</option><option>Personal</option><option>Unpaid</option><option>Other</option></select></label><label>From<input type="date" name="start_date" required/></label><label>To<input type="date" name="end_date" required/></label><label>Note for reviewer<textarea name="reason" maxLength={2000} rows={4} placeholder="Optional context"/></label><button className="primary-button" type="submit">Send request</button></form></section>
+  <section className="card leads-card"><div className="leads-heading"><div><h2>{canReview ? "Leave review queue" : "My requests"}</h2><p>{canReview ? "Employee details are visible only to HR, owners and admins." : "Only your own leave requests appear here."}</p></div></div>{requests?.length ? <div className="table-scroll"><table className="lead-table"><thead><tr>{canReview && <th>Employee</th>}<th>Leave</th><th>Dates</th><th>Note</th><th>Status</th>{canReview && <th>Review</th>}</tr></thead><tbody>{requests.map((row) => <tr key={row.id}>{canReview && <td>{names.get(row.member_id) ?? "Team member"}</td>}<td>{row.leave_type}</td><td>{dateLabel(row.start_date)} – {dateLabel(row.end_date)}</td><td>{row.reason || "—"}</td><td><span className={`stage-pill stage-${row.status === "approved" ? "completed" : row.status === "pending" ? "review" : "urgent"}`}>{row.status}</span></td>{canReview && <td>{row.status === "pending" ? <form action={reviewLeaveRequest} className="stage-form"><input type="hidden" name="organization_id" value={organizationId}/><input type="hidden" name="request_id" value={row.id}/><button name="decision" value="approved" type="submit">Approve</button><button name="decision" value="rejected" type="submit">Decline</button></form> : "—"}</td>}</tr>)}</tbody></table></div> : <div className="empty-state">No leave requests yet.</div>}</section></div>
+  <footer className="footer"><span>© 2026 Let’s Go Central</span><span>Leave decisions are permission-checked and audited</span></footer></div></section></main>;
+}

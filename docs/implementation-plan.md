@@ -80,7 +80,8 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - External event/webhook integrations and general-purpose background jobs.
 - [ ] Email, WhatsApp Business, and CRM connectors using provider adapters, consent, OAuth/API scopes, webhook validation, idempotency, and retries; avoid claiming universal software connectivity.
 - [ ] Role-aware founder/admin/HR/sales/manager/employee home views within one account and shared navigation shell.
-- [ ] Leave requests, attendance corrections, compensation approvals, and payroll as separately permissioned HR workflows, introduced only after access matrices and audit coverage are in place.
+- [x] Employee leave requests and role-gated approval queue with custom `hr.leave.manage` grants and privacy-conscious audit payloads.
+- [ ] Leave balances, attendance corrections, compensation approvals, and payroll remain separate, permissioned HR workflows.
 - Acceptance: each integration/automation execution has a tenant, actor/source, result, and retry state.
 
 ## Phase 5 — AI and hardening

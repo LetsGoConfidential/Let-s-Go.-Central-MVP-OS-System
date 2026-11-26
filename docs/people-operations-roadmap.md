@@ -13,7 +13,7 @@ Compensation changes, increments, and bonuses need a separate restricted approva
 ## Sequence
 
 1. **KPI foundations:** initial manager goals and task/CRM scorecards are implemented. Department assignment is now available on team records and visible beside workload and KPI detail. Next add department-filtered scorecards, role-aware home navigation, and organization-configured metrics before compensation or payroll.
-2. **HR basics:** configurable leave types, balances, requests, approvals, and auditable attendance events/corrections. Add employee self-service and manager/HR queues.
+2. **HR basics:** employee leave request and approval workflow with a role-gated HR queue is implemented. Configurable leave types/balances and auditable attendance events/corrections remain next.
 3. **Compensation controls:** proposed increments/bonuses, approval states, effective dates, and access restrictions; keep a full audit trail.
 4. **Payroll readiness:** employee pay profiles and payroll periods, a draft-to-approved calculation workflow, and restricted export. Start with explicit organization-configured pay rules; do not claim statutory payroll compliance until local rules and a payroll provider are configured and reviewed.
 5. **Rollout checks:** test every HR table against two tenants and owner, HR, manager, and employee roles; verify the workflow in a configured target environment before launch.
@@ -26,4 +26,4 @@ Prioritize email notifications, Slack, WhatsApp Business Platform, and CRM impor
 
 ## Release status
 
-Current code has task-based team workload, private monthly performance reviews, KPI goals for completed tasks/on-time delivery/owned won leads, tenant-scoped employee department assignments, a tenant-scoped integration registry, Slack OAuth/send foundations, and task automation. Department scorecard filtering, leave, attendance, compensation, payroll, WhatsApp, and general-purpose CRM connectors remain unimplemented. These are planned implementation slices, not completed or target-environment verified features.
+Current code has task-based team workload, private monthly performance reviews, KPI goals for completed tasks/on-time delivery/owned won leads, tenant-scoped employee department assignments, employee leave requests with a role-gated approval queue, a tenant-scoped integration registry, Slack OAuth/send foundations, and task automation. Department scorecard filtering, leave balances, attendance, compensation, payroll, WhatsApp, and general-purpose CRM connectors remain unimplemented. These are planned implementation slices, not completed or target-environment verified features.

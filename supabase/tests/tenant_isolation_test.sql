@@ -1,6 +1,6 @@
 begin;
 
-select plan(105);
+select plan(112);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -22,6 +22,9 @@ values
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'member', 'active', now()),
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 'manager', 'active', now()),
   ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'owner', 'active', now());
+
+insert into public.leave_requests (organization_id, member_id, leave_type, start_date, end_date, reason)
+values ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'Annual', '2026-12-10', '2026-12-11', 'RLS private leave fixture');
 
 insert into public.org_invitations (organization_id, email, user_id, role, status, invited_by)
 values
@@ -702,7 +705,31 @@ select results_eq(
   'Read-only member cannot update organization settings'
 );
 
+select results_eq(
+  $$insert into public.leave_requests (organization_id, member_id, leave_type, start_date, end_date, reason) values ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'Sick', '2026-12-12', '2026-12-12', 'Private reason') returning status::text$$,
+  $$values ('pending'::text)$$,
+  'Employee can create a pending leave request for themselves'
+);
+
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+
+select results_eq(
+  $$select count(*)::bigint from public.leave_requests where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Manager without hr.leave.manage cannot read an employee leave request'
+);
+
+select throws_ok(
+  $$select public.review_leave_request('20000000-0000-4000-8000-000000000001', (select id from public.leave_requests limit 1), 'approved')$$,
+  '42501', 'Not authorized to review leave requests',
+  'Manager without hr.leave.manage cannot approve a leave request'
+);
+
+select results_eq(
+  $$select public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.payroll.manage')$$,
+  $$values (false)$$,
+  'Manager role does not implicitly receive restricted payroll permission'
+);
 
 select results_eq(
   $$select title::text from public.employee_kpi_goals where member_id = '10000000-0000-4000-8000-000000000002'$$,
@@ -780,6 +807,28 @@ select throws_ok(
   $$select public.set_member_department('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'Sales')$$,
   '42501', 'Not authorized to manage organization departments',
   'Manager without organization.manage cannot assign employee departments'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+
+select results_eq(
+  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true}'::jsonb))$$,
+  $$values (true)$$,
+  'Owner can create and assign an HR leave-review permission to a custom role'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select results_eq(
+  $$select count(*)::bigint from public.leave_requests where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (2::bigint)$$,
+  'HR role can read its organization leave queue'
+);
+
+select results_eq(
+  $$select public.review_leave_request('20000000-0000-4000-8000-000000000001', (select id from public.leave_requests where reason = 'RLS private leave fixture'), 'approved')$$,
+  $$values (true)$$,
+  'HR role can approve a pending leave request'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
