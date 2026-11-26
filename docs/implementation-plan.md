@@ -61,7 +61,8 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Immutable refunds linked to original payments, capped at remaining payment value, and reconciled into invoice balances and net cash reporting.
 - [x] Basic team workload view from live assigned open, overdue, and completed task counts.
 - [x] Team detail page with assigned work counts and a private, audited monthly performance check-in.
-- [x] Employee KPI goal table and scorecard for completed tasks, on-time delivery, and owned won leads; employee self-read, manager edit, tenant isolation, audit logging, and organization-timezone periods are implemented.`n- [x] Tenant-scoped department assignment for employee records is implemented and shown in team workload and member detail. Department-filtered KPI targets and custom metrics remain in the [People operations and connected-workspace roadmap](people-operations-roadmap.md).
+- [x] Employee KPI goal table and scorecard for completed tasks, on-time delivery, and owned won leads; employee self-read, manager edit, tenant isolation, audit logging, and organization-timezone periods are implemented.
+- [x] Tenant-scoped department assignment for employee records is implemented and shown in team workload and member detail. Department-filtered KPI targets and custom metrics remain in the [People operations and connected-workspace roadmap](people-operations-roadmap.md).
 - [x] Replace authenticated dashboard fixture values with server-side tenant-scoped counts, monthly finance totals, receivables aging, and six-month cash-flow trends.
 - [x] Add scoped reports for current sales outcomes and client health, trailing-period task timeliness, and exact assigned team workload; label snapshots and measurement limits clearly.
 - Acceptance: money values use tenant currency, all aggregates respect tenant and date filters, and no metrics claim profit without expenses being included.
