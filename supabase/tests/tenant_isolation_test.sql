@@ -1,6 +1,6 @@
 begin;
 
-select plan(94);
+select plan(97);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -487,6 +487,12 @@ select results_eq(
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
 
+select throws_ok(
+  $$select public.revoke_org_invitation('20000000-0000-4000-8000-000000000001', (select id from public.org_invitations where email = 'rls-invite-a@example.test'))$$,
+  '42501', 'Not authorized to manage organization invitations',
+  'Read-only member cannot revoke a pending invitation'
+);
+
 select results_eq(
   $$select email::text from public.org_invitations where email = 'rls-invite-a@example.test'$$,
   $$select null::text where false$$,
@@ -669,6 +675,12 @@ select results_eq(
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
 
+select throws_ok(
+  $$select public.revoke_org_invitation('20000000-0000-4000-8000-000000000001', (select id from public.org_invitations where email = 'rls-invite-a@example.test'))$$,
+  '42501', 'Not authorized to manage organization invitations',
+  'Manager without organization.manage cannot revoke a pending invitation'
+);
+
 select results_eq(
   $$select email::text from public.org_invitations where email = 'rls-invite-a@example.test'$$,
   $$select null::text where false$$,
@@ -772,6 +784,12 @@ select results_eq(
   $$select status::text, amount_paid::numeric from public.invoices where organization_id = '20000000-0000-4000-8000-000000000001' and invoice_number = 'RLS-INVOICE-001'$$,
   $$values ('paid'::text, 100::numeric)$$,
   'Final invoice payment settles the recorded balance'
+);
+
+select results_eq(
+  $$select public.revoke_org_invitation('20000000-0000-4000-8000-000000000001', (select id from public.org_invitations where email = 'rls-invite-a@example.test'))$$,
+  $$values (true)$$,
+  'Owner can revoke a pending invitation'
 );
 
 select * from finish();
