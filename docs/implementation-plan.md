@@ -17,7 +17,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [ ] Apply the migration locally and inspect Supabase policy behavior.
 - [ ] Create local auth account and attach it as owner of the seeded tenant.
 - [x] Add repeatable pgTAP checks for cross-tenant reads/writes and member write restrictions, plus a GitHub Actions database verification job.
-- [x] GitHub Actions applied all 27 migrations and seed fixtures, then passed 94 pgTAP checks for tenant isolation, owner/member/manager permissions, membership and role boundaries, private HR reviews and AI conversation/message/draft access, task-comment write/read permissions, content-review visibility, private file metadata and storage objects, integration and automation histories, credential-vault access denial, won-lead conversion, finance ledger rules, CRM record boundaries, and tenant-safe project/task/content reads, links, and assignments (run #44, commit `f46156d`).
+- [x] GitHub Actions applied all 27 migrations and seed fixtures, then passed 97 pgTAP checks for tenant isolation, owner/member/manager permissions, membership and role boundaries, private HR reviews and AI conversation/message/draft access, task-comment write/read permissions, content-review visibility, private file metadata and storage objects, integration and automation histories, credential-vault access denial, won-lead conversion, finance ledger rules, CRM record boundaries, and tenant-safe project/task/content reads, links, and assignments (run #45, commit `b81b389`).
 
 ## Phase 1 — secure product access
 
@@ -61,6 +61,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Immutable refunds linked to original payments, capped at remaining payment value, and reconciled into invoice balances and net cash reporting.
 - [x] Basic team workload view from live assigned open, overdue, and completed task counts.
 - [x] Team detail page with assigned work counts and a private, audited monthly performance check-in.
+- [ ] Employee KPI scorecards with defined metrics, task-derived actuals, department targets, and employee-visible goals; see [People operations and connected-workspace roadmap](people-operations-roadmap.md).
 - [x] Replace authenticated dashboard fixture values with server-side tenant-scoped counts, monthly finance totals, receivables aging, and six-month cash-flow trends.
 - [x] Add scoped reports for current sales outcomes and client health, trailing-period task timeliness, and exact assigned team workload; label snapshots and measurement limits clearly.
 - Acceptance: money values use tenant currency, all aggregates respect tenant and date filters, and no metrics claim profit without expenses being included.
@@ -76,6 +77,9 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Slack OAuth callback with signed state, server-side AES-GCM encrypted credentials, and refresh-token rotation support.
 - [x] Send a Slack message from the connected workspace to a channel where the bot is a member.
 - External event/webhook integrations and general-purpose background jobs.
+- [ ] Email, WhatsApp Business, and CRM connectors using provider adapters, consent, OAuth/API scopes, webhook validation, idempotency, and retries; avoid claiming universal software connectivity.
+- [ ] Role-aware founder/admin/HR/sales/manager/employee home views within one account and shared navigation shell.
+- [ ] Leave requests, attendance corrections, compensation approvals, and payroll as separately permissioned HR workflows, introduced only after access matrices and audit coverage are in place.
 - Acceptance: each integration/automation execution has a tenant, actor/source, result, and retry state.
 
 ## Phase 5 — AI and hardening
@@ -100,4 +104,4 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 
 ## Immediate next implementation slice
 
-The CI runner applies migrations 001-027 and passes the pgTAP suite. Latest verified run: [#44](https://github.com/LetsGoConfidential/Let-s-Go.-Central-MVP-OS-System/actions/runs/45593909847), commit `f46156d`, with 94 assertions, including invitation visibility by tenant and organization-management permission. The next local/target-environment step is to configure valid Supabase settings, the CLI, and Docker; run `pnpm preflight`; apply migrations; provision the founder account as owner of `lets-go-digitals`; and exercise the browser workflows. Regenerate database types from local Supabase. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.
+The CI runner applies migrations 001-027 and passes the pgTAP suite. Latest verified run: [#45](https://github.com/LetsGoConfidential/Let-s-Go.-Central-MVP-OS-System/actions/runs/45760847939), commit `b81b389`, with 97 assertions, including invitation tenant visibility and manager/member/owner revocation permissions. The next local/target-environment step is to configure valid Supabase settings, the CLI, and Docker; run `pnpm preflight`; apply migrations; provision the founder account as owner of `lets-go-digitals`; and exercise the browser workflows. Regenerate database types from local Supabase. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.
