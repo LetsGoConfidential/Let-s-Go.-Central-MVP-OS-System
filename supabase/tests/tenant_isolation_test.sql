@@ -1,6 +1,6 @@
 begin;
 
-select plan(118);
+select plan(119);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -812,12 +812,18 @@ select throws_ok(
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select results_eq(
-  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true}'::jsonb))$$,
+  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true,"hr.people.invite":true}'::jsonb))$$,
   $$values (true)$$,
   'Owner can create and assign an HR leave-review permission to a custom role'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select is(
+  public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.people.invite'),
+  true,
+  'Explicit HR invite permission can invite regular members'
+);
 
 select results_eq(
   $$select count(*)::bigint from public.leave_requests where organization_id = '20000000-0000-4000-8000-000000000001'$$,

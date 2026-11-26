@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     if (!organizationId) return NextResponse.redirect(new URL("/auth/invitation-error", request.url));
     const { data: accepted, error } = await supabase.rpc("accept_org_invitation", { target_org: organizationId });
     if (error || !accepted) return NextResponse.redirect(new URL("/auth/invitation-error", request.url));
-    destination.searchParams.delete("accept_invite");
+    return NextResponse.redirect(new URL(`/auth/complete-invitation?organization=${encodeURIComponent(organizationId)}`, request.url));
   }
   return NextResponse.redirect(destination);
 }

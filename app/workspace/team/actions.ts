@@ -30,11 +30,18 @@ export async function inviteTeamMember(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const role = String(formData.get("role") ?? "member");
+  const department = String(formData.get("department") ?? "").trim();
   const fullName = String(formData.get("full_name") ?? "").trim();
-  if (!organizationId || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || fullName.length > 120 || !["admin", "manager", "member"].includes(role)) {
+  const allowedDepartments = ["Sales", "HR", "Management", "Production", "Concept", "Operations"];
+  if (!organizationId || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || fullName.length > 120 || !["admin", "manager", "member"].includes(role) || !allowedDepartments.includes(department)) {
     redirect(teamUrl(organizationId, "invalid"));
   }
-  const { supabase, user } = await authorized(organizationId);
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: canManageMembers } = await supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "organization.manage" });
+  const { data: canInviteMembers } = await supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "hr.people.invite" });
+  if (!canManageMembers && (!canInviteMembers || role !== "member")) redirect(teamUrl(organizationId, "forbidden"));
   if (email === user.email?.toLowerCase()) redirect(teamUrl(organizationId, "self"));
   const admin = adminClient();
   if (!admin) redirect(teamUrl(organizationId, "config"));
@@ -47,7 +54,7 @@ export async function inviteTeamMember(formData: FormData) {
   if (existingUser) {
     const { data: existingMembership } = await supabase.from("org_members").select("status").eq("organization_id", organizationId).eq("user_id", existingUser.id).maybeSingle();
     if (existingMembership) redirect(teamUrl(organizationId, "duplicate"));
-    const { error: memberError } = await admin.from("org_members").insert({ organization_id: organizationId, user_id: existingUser.id, role, status: "active", joined_at: new Date().toISOString() });
+    const { error: memberError } = await admin.from("org_members").insert({ organization_id: organizationId, user_id: existingUser.id, role, department, status: "active", joined_at: new Date().toISOString() });
     if (memberError) redirect(teamUrl(organizationId, "invite-failed"));
     await admin.from("audit_logs").insert({ organization_id: organizationId, actor_id: user.id, action: "add_existing_member", entity_type: "org_members", entity_id: existingUser.id, changes: { email, role, status: "active" } });
     revalidatePath("/workspace/team"); revalidatePath("/workspace/tasks");
@@ -71,6 +78,8 @@ export async function inviteTeamMember(formData: FormData) {
     actor_id: user.id,
   });
   if (storeError) redirect(teamUrl(organizationId, "store-failed"));
+  const { error: departmentError } = await admin.from("org_members").update({ department }).eq("organization_id", organizationId).eq("user_id", invite.user.id).eq("status", "invited");
+  if (departmentError) redirect(teamUrl(organizationId, "store-failed"));
   revalidatePath("/workspace/team");
   redirect(teamUrl(organizationId, "invited"));
 }
