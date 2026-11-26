@@ -1,6 +1,6 @@
 begin;
 
-select plan(166);
+select plan(186);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -1257,12 +1257,137 @@ select throws_ok(
   'Manager cannot change compensation without payroll permission'
 );
 
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+
+select ok(
+  public.create_payroll_run('20000000-0000-4000-8000-000000000001', date_trunc('month', current_date + interval '1 month')::date) is not null,
+  'Owner can create a monthly payroll draft'
+);
+
+select results_eq(
+  $$select count(*)::bigint from public.payroll_entries where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (2::bigint)$$,
+  'Payroll draft snapshots employees with compensation effective on the period start'
+);
+
+select results_eq(
+  $$select base_salary::numeric, monthly_allowance::numeric, net_pay::numeric from public.payroll_entries where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$values (50000::numeric, 3000::numeric, 53000::numeric)$$,
+  'Draft uses the effective salary and allowance without counting the bonus target as paid'
+);
+
+select throws_ok(
+  $$select public.create_payroll_run('20000000-0000-4000-8000-000000000001', date_trunc('month', current_date + interval '1 month')::date)$$,
+  '23505', 'A payroll run already exists for this month',
+  'Payroll cannot create a duplicate run for a month'
+);
+
+select throws_ok(
+  $$select public.create_payroll_run('20000000-0000-4000-8000-000000000001', date_trunc('month', current_date)::date + 1)$$,
+  '22023', 'Payroll period must start on the first of a month',
+  'Payroll periods must align to calendar months'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select results_eq(
+  $$select count(*)::bigint from public.payroll_runs where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (1::bigint)$$,
+  'Payroll-authorized HR role can review the monthly run'
+);
+
+select results_eq(
+  $$select public.update_payroll_entry('20000000-0000-4000-8000-000000000001', (select id from public.payroll_entries where member_id = '10000000-0000-4000-8000-000000000002'), 2000, 1000, 500, 'Approved quarterly bonus')$$,
+  $$values (true)$$,
+  'Payroll-authorized HR can adjust a draft bonus and deductions'
+);
+
+select results_eq(
+  $$select bonus_paid::numeric, other_additions::numeric, deductions::numeric, net_pay::numeric from public.payroll_entries where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$values (2000::numeric, 1000::numeric, 500::numeric, 56000::numeric)$$,
+  'Payroll net pay is recalculated from reviewed draft adjustments'
+);
+
+select throws_ok(
+  $$select public.update_payroll_entry('20000000-0000-4000-8000-000000000001', (select id from public.payroll_entries where member_id = '10000000-0000-4000-8000-000000000002'), 0, 0, 60000, 'Too much deduction')$$,
+  '22023', 'Deductions cannot exceed gross pay',
+  'Payroll adjustments cannot create negative net pay'
+);
+
+select results_eq(
+  $$select public.transition_payroll_run('20000000-0000-4000-8000-000000000001', (select id from public.payroll_runs where organization_id = '20000000-0000-4000-8000-000000000001'), 'approve')$$,
+  $$values (true)$$,
+  'Payroll-authorized HR can approve the reviewed draft'
+);
+
+select results_eq(
+  $$select status::text, approved_by::text, paid_at from public.payroll_runs where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values ('approved'::text, '10000000-0000-4000-8000-000000000002'::text, null::timestamptz)$$,
+  'Approved run records the authorized reviewer'
+);
+
+select results_eq(
+  $$select public.transition_payroll_run('20000000-0000-4000-8000-000000000001', (select id from public.payroll_runs where organization_id = '20000000-0000-4000-8000-000000000001'), 'mark_paid')$$,
+  $$values (true)$$,
+  'Payroll-authorized HR can record that an approved run was paid'
+);
+
+select results_eq(
+  $$select status::text, paid_by::text, paid_at is not null from public.payroll_runs where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values ('paid'::text, '10000000-0000-4000-8000-000000000002'::text, true)$$,
+  'Paid run records who confirmed payment without initiating a transfer'
+);
+
+select is(
+  (select changes ? 'net_pay' from public.audit_logs where organization_id = '20000000-0000-4000-8000-000000000001' and entity_type = 'payroll_runs' order by id desc limit 1),
+  false,
+  'Payroll audit history does not expose pay amounts'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+
+select results_eq(
+  $$select count(*)::bigint from public.payroll_entries where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (1::bigint)$$,
+  'Employee can read their own payroll entry only'
+);
+
+select results_eq(
+  $$select count(*)::bigint from public.payroll_entries where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$values (0::bigint)$$,
+  'Employee cannot read another employee payslip data'
+);
+
+select throws_ok(
+  $$select public.transition_payroll_run('20000000-0000-4000-8000-000000000001', (select id from public.payroll_runs where organization_id = '20000000-0000-4000-8000-000000000001'), 'approve')$$,
+  '42501', 'Not authorized to manage payroll',
+  'Manager cannot approve payroll without the separate permission'
+);
+
+select throws_ok(
+  $$insert into public.payroll_entries (organization_id, payroll_run_id, member_id, currency, base_salary) select organization_id, id, '10000000-0000-4000-8000-000000000003', 'INR', 1 from public.payroll_runs where organization_id = '20000000-0000-4000-8000-000000000001' returning id$$,
+  '42501', null,
+  'Employee cannot write payroll entries directly'
+);
+
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
 
 select results_eq(
   $$select count(*)::bigint from public.employee_compensation where organization_id = '20000000-0000-4000-8000-000000000001'$$,
   $$values (0::bigint)$$,
   'Other tenant member cannot read compensation history'
+);
+
+select results_eq(
+  $$select count(*)::bigint from public.payroll_runs where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Other tenant member cannot read payroll runs'
+);
+
+select results_eq(
+  $$select count(*)::bigint from public.payroll_entries where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Other tenant member cannot read payroll entries'
 );
 
 select * from finish();

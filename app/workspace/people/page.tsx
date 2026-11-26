@@ -19,7 +19,7 @@ export default async function PeopleHub({ searchParams }: { searchParams: Promis
     { title: "Attendance", detail: "Check in/out and review your workday history.", href: `/workspace/attendance?organization=${orgId}`, icon: CalendarClock, state: "Available" },
     { title: "Leave & time off", detail: "Submit leave and follow approval status.", href: `/workspace/leave?organization=${orgId}`, icon: FileText, state: "Available" },
     { title: "HR records", detail: "Employee documents and contracts need restricted HR access before storage is enabled.", href: `/workspace/team?organization=${orgId}`, icon: FileText, state: "Planned" },
-    { title: "Payroll & compensation", detail: "View private compensation history and record effective-dated salary, allowance, and bonus target changes.", href: `/workspace/people/payroll?organization=${orgId}`, icon: WalletCards, state: "Available" },
+    { title: "Payroll & compensation", detail: "Manage private compensation, monthly draft runs, approved pay statements, and payment status.", href: `/workspace/people/payroll?organization=${orgId}`, icon: WalletCards, state: "Available" },
   ];
   const { data: canManageAttendance } = await supabase.rpc("has_org_permission", { target_org: orgId, permission_key: "hr.attendance.manage" });
   const { data: canManageLeave } = await supabase.rpc("has_org_permission", { target_org: orgId, permission_key: "hr.leave.manage" });
