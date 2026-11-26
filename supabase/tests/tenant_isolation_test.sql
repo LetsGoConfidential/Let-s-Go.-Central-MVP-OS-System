@@ -1106,7 +1106,22 @@ select is(
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
 
 select results_eq(
-  $$select status::text from public.attendance_corrections where id = public.submit_attendance_correction('20000000-0000-4000-8000-000000000001', (select id from public.attendance_days where member_id = '10000000-0000-4000-8000-000000000002' order by created_at desc limit 1), (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '8 hours', (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '1 hour', 'Clock was recorded late')$$,
+  $$
+    with attendance as (
+      select id from public.attendance_days
+      where member_id = '10000000-0000-4000-8000-000000000002'
+      order by created_at desc limit 1
+    ), submitted as (
+      select public.submit_attendance_correction(
+        '20000000-0000-4000-8000-000000000001', (select id from attendance),
+        (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '8 hours',
+        (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '1 hour',
+        'Clock was recorded late'
+      ) as correction_id
+    )
+    select c.status::text from submitted s
+    join public.attendance_corrections c on c.id = s.correction_id
+  $$,
   $$values ('pending'::text)$$,
   'Employee can submit a correction for their own attendance record'
 );
