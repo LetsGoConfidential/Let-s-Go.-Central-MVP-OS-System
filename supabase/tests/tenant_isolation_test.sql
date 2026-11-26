@@ -132,6 +132,11 @@ values (
   4, 4, 5, 4, 'RLS private manager note'
 );
 
+insert into public.attendance_days (organization_id, member_id, work_date, checked_in_at, checked_out_at)
+select '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003',
+  (now() at time zone o.timezone)::date, now() - interval '8 hours', now() - interval '1 hour'
+from public.organizations o where o.id = '20000000-0000-4000-8000-000000000001';
+
 set local role authenticated;
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
 
@@ -1094,14 +1099,9 @@ set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select is(
   (select count(*)::integer from public.attendance_days where organization_id = '20000000-0000-4000-8000-000000000001'),
-  1,
+  2,
   'Organization owner can review team attendance'
 );
-
-insert into public.attendance_days (organization_id, member_id, work_date, checked_in_at, checked_out_at)
-select '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003',
-  (now() at time zone o.timezone)::date, now() - interval '8 hours', now() - interval '1 hour'
-from public.organizations o where o.id = '20000000-0000-4000-8000-000000000001';
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
 
