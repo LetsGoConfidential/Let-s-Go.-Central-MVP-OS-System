@@ -56,6 +56,7 @@ export type Database = {
     Functions: {
       is_org_member: { Args: { target_org: string }; Returns: boolean };
       has_org_permission: { Args: { target_org: string; permission_key: string }; Returns: boolean };
+      set_assigned_task_status: { Args: { target_org: string; target_task: string; new_status: string }; Returns: boolean };
       create_organization: { Args: { org_name: string; org_slug: string }; Returns: string };
       create_client_with_contact: { Args: { target_org: string; client_name: string; client_industry?: string | null; client_website?: string | null; client_monthly_value?: number; contact_first_name?: string | null; contact_last_name?: string | null; contact_email?: string | null; contact_phone?: string | null }; Returns: string };
       sales_summary: { Args: { target_org: string }; Returns: { open_lead_count: number; pipeline_value: number; proposal_count: number }[] };

@@ -17,7 +17,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [ ] Apply the migration locally and inspect Supabase policy behavior.
 - [ ] Create local auth account and attach it as owner of the seeded tenant.
 - [x] Add repeatable pgTAP checks for cross-tenant reads/writes and member write restrictions, plus a GitHub Actions database verification job.
-- [x] GitHub Actions applied all 30 migrations and seed fixtures, then passed 112 pgTAP checks for tenant isolation, owner/member/manager permissions, membership and role boundaries, private HR reviews and AI conversation/message/draft access, task-comment write/read permissions, content-review visibility, private file metadata and storage objects, integration and automation histories, credential-vault access denial, won-lead conversion, finance ledger rules, CRM record boundaries, and tenant-safe project/task/content reads, links, and assignments (run #52, commit `0ec2a7c`).
+- [x] GitHub Actions applied all 32 migrations and seed fixtures, then passed 120 pgTAP checks for tenant isolation, owner/member/manager permissions, membership and role boundaries, private HR reviews and AI conversation/message/draft access, task-comment write/read permissions, content-review visibility, private file metadata and storage objects, integration and automation histories, credential-vault access denial, won-lead conversion, finance ledger rules, CRM record boundaries, tenant-safe project/task/content reads, links, and assignments, KPI goals, department assignment, leave authorization, attendance self-service, HR visibility, and cross-tenant attendance denial (run #65, commit `b424f78`).
 
 ## Phase 1 — secure product access
 
@@ -25,7 +25,8 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Password reset email, callback session exchange, and authenticated password update (12-character minimum).
 - [x] Workspace switcher on the founder dashboard lists only active memberships; signed-in users without a workspace can onboard through the atomic `create_organization` RPC.
 - [x] Invite new members by email, accept invitations against the authenticated email, revoke pending invitations, update roles, and suspend members.
-- [x] Custom role editor and assignment with workspace-write/finance permission keys.
+- [x] HR-granted `hr.people.invite` can invite regular members; manager/admin invitations remain restricted to owner/admin.
+- [x] Custom role editor and assignment with separate workspace, finance, KPI, HR, invitations, and assigned-task permissions.
 - [x] Owner transfer flow: current owner confirms the transfer; former owner becomes an admin.
 - [x] Owner/admin workspace settings for organization name, legal name, IANA timezone, and default currency with audited updates.
 - [x] Add a migration-backed TypeScript schema snapshot for all public tables, enums, and RPCs.
@@ -44,6 +45,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [x] Project delivery: tenant-scoped list/create/detail/edit, client link, scope, dates, priority, budget, linked task roll-up, permission-gated expenses, and audit history.
 - [x] Task workflow: tenant-scoped board/create/assignment, project link, due date, priority, blockers, editable task details, and append-only comment activity.
 - [x] Assign tasks to active same-tenant internal members; database trigger rejects cross-tenant or client assignments.
+- [x] Assigned-task employee role can view only their own assigned tasks, update status, and add progress notes; database functions and row policies reject coworker and cross-tenant access.
 - [x] Content workflow foundation: tenant-scoped content list/create and draft/review/approved/scheduled/published state changes.
 - [x] Content calendar weekly/monthly views, client association, scheduling dates, and publish-status updates.
 - [x] Content item detail, client/project association, editable caption, and append-only review comments/approval/change requests.
@@ -81,6 +83,7 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 - [ ] Email, WhatsApp Business, and CRM connectors using provider adapters, consent, OAuth/API scopes, webhook validation, idempotency, and retries; avoid claiming universal software connectivity.
 - [ ] Role-aware founder/admin/HR/sales/manager/employee home views within one account and shared navigation shell.
 - [x] Employee leave requests and role-gated approval queue with custom `hr.leave.manage` grants and privacy-conscious audit payloads.
+- [x] Employee daily check-in/check-out with organization-local work dates, self-only history, separately permissioned HR team visibility, and audited changes.
 - [ ] Leave balances, attendance corrections, compensation approvals, and payroll remain separate, permissioned HR workflows.
 - Acceptance: each integration/automation execution has a tenant, actor/source, result, and retry state.
 
@@ -98,12 +101,12 @@ Let’s Go Digitals can use one secure workspace to manage a lead from first con
 
 ## MVP release gates
 
-1. GitHub Actions migration, seed, and pgTAP pass is green; apply the schema in the target Supabase project and inspect its deployed policy behavior.
-2. CI verifies two-tenant visibility/write boundaries and owner/member/manager checks across organization, client, and finance examples; extend the full role matrix to every tenant table before production rollout.
-3. Exercise invite, lead conversion, project/task/content flow, invoice/expense flow, and dashboard aggregate consistency in the configured app. CI currently covers lead conversion and invoice item/payment invariants, not the complete browser workflow.
+1. GitHub Actions migration, seed, and pgTAP pass is green on run #65; local and target-project schema application plus deployed-policy review remain pending.
+2. CI verifies two-tenant visibility/write boundaries and owner/member/manager checks across major operational areas, including HR and attendance; extend the role matrix across every tenant table before production rollout.
+3. Exercise invitation, lead conversion, project/task/content flow, invoice/expense flow, and dashboard aggregate consistency in the configured app. CI does not replace a configured browser workflow review.
 4. Configure production secrets and backups; deploy behind an invite-only pilot for Let’s Go Digitals.
 5. Capture operational feedback, then prioritize the next slice from real use.
 
 ## Immediate next implementation slice
 
-The CI runner applies migrations 001-030 and passes the pgTAP suite. Latest verified run: [#49](https://github.com/LetsGoConfidential/Let-s-Go.-Central-MVP-OS-System/actions/runs/45764276215), commit `0ec2a7c`, with 112 assertions, including tenant isolation, employee/manager/owner KPI-goal access, owner-only department assignment, and employee/HR leave-request access. The next local/target-environment step is to configure valid Supabase settings, the CLI, and Docker; run `pnpm preflight`; apply migrations; provision the founder account as owner of `lets-go-digitals`; and exercise the browser workflows. Regenerate database types from local Supabase. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.
+The CI runner applies all 32 migrations and passes 120 pgTAP assertions. Latest verified run: [#65](https://github.com/LetsGoConfidential/Let-s-Go.-Central-MVP-OS-System/actions/runs/45810507973), commit `b424f78`. This includes tenant isolation, finance ledger rules, CRM conversion, membership/role boundaries, KPI and department access, leave and attendance permissions, and cross-tenant attendance denial. Local and deployed environments remain unverified: this checkout has no `.env.local`, Supabase CLI, or Docker, and `pnpm preflight` reports those as blockers. Once available, configure Supabase, run `pnpm preflight`, apply migrations, provision the founder account as owner of `lets-go-digitals`, regenerate database types, and exercise the browser workflows. Configure Supabase Auth email delivery and allow `/auth/callback` on the deployed site before exercising invitations and password resets. Configure the Slack app and server-only credentials before connecting it; configure `OPENAI_API_KEY` and `OPENAI_MODEL` before using the AI Command Center. Set current model token prices before enabling an organization AI budget. Set `AUTOMATION_WORKER_SECRET` and schedule `POST /api/automation/worker` at least every 15 minutes to process schedules and queued lead events.

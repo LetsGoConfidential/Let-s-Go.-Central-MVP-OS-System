@@ -24,6 +24,7 @@ export async function saveCustomRole(formData: FormData) {
     "hr.leave.manage": formData.get("leave_manage") === "on",
     "hr.attendance.manage": formData.get("attendance_manage") === "on",
     "hr.people.invite": formData.get("people_invite") === "on",
+    "tasks.self.update": formData.get("self_task_update") === "on",
   };
   if (!organizationId || name.length < 2 || name.length > 80) redirect(rolesUrl(organizationId, "invalid"));
   const supabase = await authorize(organizationId);

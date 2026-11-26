@@ -38,8 +38,17 @@ export async function updateTaskStatus(formData: FormData) {
   const taskId = String(formData.get("task_id") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!organizationId || !taskId || !isOneOf(taskStatuses, status)) redirect(`/workspace/tasks?organization=${encodeURIComponent(organizationId)}&error=invalid`);
-  const { supabase } = await writer(organizationId);
-  const { error } = await supabase.from("tasks").update({ status, completed_at: status === "done" ? new Date().toISOString() : null }).eq("organization_id", organizationId).eq("id", taskId);
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const [{ data: canWrite }, { data: canUpdateOwn }] = await Promise.all([
+    supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "workspace.write" }),
+    supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "tasks.self.update" }),
+  ]);
+  if (!canWrite && !canUpdateOwn) redirect(`/workspace/tasks?organization=${encodeURIComponent(organizationId)}&error=forbidden`);
+  const { error } = canWrite
+    ? await supabase.from("tasks").update({ status, completed_at: status === "done" ? new Date().toISOString() : null }).eq("organization_id", organizationId).eq("id", taskId)
+    : await supabase.rpc("set_assigned_task_status", { target_org: organizationId, target_task: taskId, new_status: status });
   if (error) redirect(`/workspace/tasks?organization=${encodeURIComponent(organizationId)}&error=save`);
   revalidatePath("/workspace"); revalidatePath("/workspace/tasks");
   redirect(`/workspace/tasks?organization=${encodeURIComponent(organizationId)}&updated=1`);
@@ -84,7 +93,14 @@ export async function addTaskComment(formData: FormData) {
   const body = String(formData.get("body") ?? "").trim();
   const target = `/workspace/tasks/${encodeURIComponent(taskId)}?organization=${encodeURIComponent(organizationId)}`;
   if (!organizationId || !taskId || body.length < 1 || body.length > 4000) redirect(`${target}&error=comment-invalid`);
-  const { supabase, user } = await writer(organizationId);
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const [{ data: canWrite }, { data: canUpdateOwn }] = await Promise.all([
+    supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "workspace.write" }),
+    supabase.rpc("has_org_permission", { target_org: organizationId, permission_key: "tasks.self.update" }),
+  ]);
+  if (!canWrite && !canUpdateOwn) redirect(`${target}&error=forbidden`);
   const { error } = await supabase.from("task_comments").insert({ organization_id: organizationId, task_id: taskId, author_id: user.id, body });
   if (error) redirect(`${target}&error=comment-save`);
   revalidatePath(`/workspace/tasks/${taskId}`); revalidatePath("/workspace/audit");

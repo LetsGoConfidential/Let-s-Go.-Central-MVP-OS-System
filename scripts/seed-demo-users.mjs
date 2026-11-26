@@ -30,7 +30,7 @@ const demoAccounts = [
   { email: "sales@letsgo-demo.test", name: "Demo Sales", role: "member", department: "Sales", permissions: { "workspace.write": true } },
   { email: "manager@letsgo-demo.test", name: "Demo Manager", role: "manager", department: "Management" },
   { email: "production@letsgo-demo.test", name: "Demo Production", role: "member", department: "Production", permissions: { "workspace.write": true } },
-  { email: "employee@letsgo-demo.test", name: "Demo Employee", role: "member", department: "Production" },
+  { email: "employee@letsgo-demo.test", name: "Demo Employee", role: "member", department: "Production", permissions: { "tasks.self.update": true } },
 ];
 
 const supabase = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } });

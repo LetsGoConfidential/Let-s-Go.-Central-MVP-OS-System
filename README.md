@@ -30,9 +30,9 @@ After starting local Supabase and resetting the database, copy the **local** API
 | `sales@letsgo-demo.test` | Sales workspace access, no finance permission |
 | `manager@letsgo-demo.test` | Manager workspace access, no owner-only finance or HR permissions |
 | `production@letsgo-demo.test` | Production workspace access, no finance permission |
-| `employee@letsgo-demo.test` | Employee, read-only workspace access |
+| `employee@letsgo-demo.test` | Employee, own assigned tasks and progress notes only |
 
-All six local accounts use password `CentralDemo!2026`. Sign in at `http://localhost:3000/login`. These are synthetic local fixtures, not deployable customer credentials. Do not copy them into hosted Supabase. The employee is read-only because task-only write permissions are not implemented yet; the existing permission model does not yet isolate every department's records from other members of the same organization.
+All six local accounts use password `CentralDemo!2026`. Sign in at `http://localhost:3000/login`. These are synthetic local fixtures, not deployable customer credentials. Do not copy them into hosted Supabase. The employee can change the status and add progress notes only on tasks assigned to them; they cannot edit task details, reassign work, manage finance, or access HR controls. Department labels still do not isolate all records from other members of the same organization.
 
 Run `pnpm preflight` before starting local services to check required environment values, migration ordering, Node.js, Supabase CLI, and Docker. It reports variable names and setup status only; it never prints secret values. Slack and AI values remain optional unless you enable those integrations.
 

@@ -1,6 +1,6 @@
 begin;
 
-select plan(120);
+select plan(131);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -59,6 +59,15 @@ values
 
 insert into public.tasks (id, organization_id, project_id, title)
 values ('51000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', 'RLS fixture task A');
+
+update public.tasks set assignee_id = '10000000-0000-4000-8000-000000000002'
+where id = '51000000-0000-4000-8000-000000000001';
+
+insert into public.tasks (id, organization_id, project_id, assignee_id, title)
+values ('51000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000001', '50000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'RLS fixture owner task');
+
+insert into public.task_comments (organization_id, task_id, author_id, body)
+values ('20000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', 'RLS owner task private note');
 
 insert into public.content_items (organization_id, client_id, project_id, title)
 values
@@ -812,7 +821,7 @@ select throws_ok(
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select results_eq(
-  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true,"hr.people.invite":true}'::jsonb))$$,
+  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true,"hr.people.invite":true,"tasks.self.update":true}'::jsonb))$$,
   $$values (true)$$,
   'Owner can create and assign an HR leave-review permission to a custom role'
 );
@@ -898,6 +907,74 @@ select results_eq(
   $$select public.set_member_department('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'Sales')$$,
   $$values (true)$$,
   'Organization owner can assign a department to an employee'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select is(
+  public.has_org_permission('20000000-0000-4000-8000-000000000001', 'tasks.self.update'),
+  true,
+  'Assigned employee receives the narrow task progress permission'
+);
+
+select is(
+  public.set_assigned_task_status('20000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', 'in_progress'),
+  true,
+  'Employee can update status for an assigned task'
+);
+
+select results_eq(
+  $$select title::text, status::text from public.tasks where id = '51000000-0000-4000-8000-000000000001'$$,
+  $$values ('RLS fixture task A'::text, 'in_progress'::text)$$,
+  'Self-service status update leaves task details intact'
+);
+
+select throws_ok(
+  $$select public.set_assigned_task_status('20000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000003', 'done')$$,
+  '42501', 'Assigned task not found',
+  'Employee cannot update a task assigned to another teammate'
+);
+
+select results_eq(
+  $$update public.tasks set title = 'RLS forged task edit' where id = '51000000-0000-4000-8000-000000000001' returning title::text$$,
+  $$select null::text where false$$,
+  'Self-service task permission cannot edit task details directly'
+);
+
+select results_eq(
+  $$select title::text from public.tasks where id = '51000000-0000-4000-8000-000000000001'$$,
+  $$values ('RLS fixture task A'::text)$$,
+  'Rejected direct task edit leaves the task unchanged'
+);
+
+select results_eq(
+  $$insert into public.task_comments (organization_id, task_id, body) values ('20000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000001', 'RLS assigned employee progress update') returning body::text$$,
+  $$values ('RLS assigned employee progress update'::text)$$,
+  'Employee can add a progress note to their assigned task'
+);
+
+select results_eq(
+  $$insert into public.task_comments (organization_id, task_id, body) values ('20000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000003', 'RLS unauthorized coworker update') returning body::text$$,
+  $$select null::text where false$$,
+  'Employee cannot add an update to another teammate task'
+);
+
+select results_eq(
+  $$select title::text from public.tasks where organization_id = '20000000-0000-4000-8000-000000000001' order by title$$,
+  $$values ('RLS fixture task A'::text)$$,
+  'Employee task view shows only their assigned work'
+);
+
+select results_eq(
+  $$select body::text from public.task_comments where body = 'RLS owner task private note'$$,
+  $$select null::text where false$$,
+  'Employee cannot read updates from another teammate task'
+);
+
+select throws_ok(
+  $$select public.set_assigned_task_status('20000000-0000-4000-8000-000000000002', '51000000-0000-4000-8000-000000000002', 'done')$$,
+  '42501', 'Not authorized to update assigned tasks',
+  'Employee cannot update a task across tenant boundaries'
 );
 
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
