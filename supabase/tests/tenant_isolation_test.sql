@@ -953,9 +953,9 @@ select results_eq(
   'Employee can add a progress note to their assigned task'
 );
 
-select results_eq(
+select throws_ok(
   $$insert into public.task_comments (organization_id, task_id, body) values ('20000000-0000-4000-8000-000000000001', '51000000-0000-4000-8000-000000000003', 'RLS unauthorized coworker update') returning body::text$$,
-  $$select null::text where false$$,
+  '42501', null,
   'Employee cannot add an update to another teammate task'
 );
 
