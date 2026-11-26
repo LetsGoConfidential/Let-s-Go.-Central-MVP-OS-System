@@ -1,6 +1,6 @@
 begin;
 
-select plan(153);
+select plan(166);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -826,7 +826,7 @@ select throws_ok(
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select results_eq(
-  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true,"hr.people.invite":true,"hr.attendance.manage":true,"tasks.self.update":true}'::jsonb))$$,
+  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true,"hr.people.invite":true,"hr.attendance.manage":true,"hr.payroll.manage":true,"tasks.self.update":true}'::jsonb))$$,
   $$values (true)$$,
   'Owner can create and assign an HR leave-review permission to a custom role'
 );
@@ -837,6 +837,12 @@ select is(
   public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.people.invite'),
   true,
   'Explicit HR invite permission can invite regular members'
+);
+
+select is(
+  public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.payroll.manage'),
+  true,
+  'Payroll access is independently grantable to an authorized HR role'
 );
 
 select results_eq(
@@ -1185,6 +1191,78 @@ select throws_ok(
   $$select public.submit_attendance_correction('20000000-0000-4000-8000-000000000002', (select id from public.attendance_days where member_id = '10000000-0000-4000-8000-000000000002' limit 1), now()::timestamp, null::timestamp, 'Cross tenant attempt')$$,
   '42501', 'Not authorized to request attendance correction',
   'Employee cannot create attendance corrections across tenant boundaries'
+);
+
+-- Sensitive compensation is visible to its employee or a payroll-authorized role.
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+
+select ok(
+  public.set_employee_compensation('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', current_date, 50000, 3000, 5000, 'INR', 'Initial compensation') is not null,
+  'Owner can record an employee compensation package'
+);
+
+select ok(
+  public.set_employee_compensation('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', current_date, 40000, 2000, 0, 'INR', 'Manager compensation') is not null,
+  'Owner can record manager compensation'
+);
+
+select ok(
+  public.set_employee_compensation('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', current_date + 30, 60000, 3500, 8000, 'INR', 'Annual increment') is not null,
+  'Owner can add a future-dated increment to compensation history'
+);
+
+select results_eq(
+  $$select monthly_base::numeric, monthly_allowance::numeric, monthly_bonus_target::numeric, effective_to from public.employee_compensation where member_id = '10000000-0000-4000-8000-000000000002' order by effective_from desc limit 1$$,
+  $$select 60000::numeric, 3500::numeric, 8000::numeric, null::date$$,
+  'New compensation becomes the latest open-ended record'
+);
+
+select results_eq(
+  $$select monthly_base::numeric, effective_to from public.employee_compensation where member_id = '10000000-0000-4000-8000-000000000002' order by effective_from limit 1$$,
+  $$select 50000::numeric, current_date + 29$$,
+  'Salary change closes the previous record the day before the new effective date'
+);
+
+select is(
+  (select changes ? 'monthly_base' from public.audit_logs where organization_id = '20000000-0000-4000-8000-000000000001' and entity_type = 'employee_compensation' order by id desc limit 1),
+  false,
+  'Compensation audit entry does not expose salary amounts'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select results_eq(
+  $$select count(*)::bigint from public.employee_compensation where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (3::bigint)$$,
+  'Payroll-authorized HR role can read team compensation records'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+
+select results_eq(
+  $$select count(*)::bigint from public.employee_compensation where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (1::bigint)$$,
+  'Manager without payroll access can read only personal compensation'
+);
+
+select results_eq(
+  $$select count(*)::bigint from public.employee_compensation where member_id = '10000000-0000-4000-8000-000000000002'$$,
+  $$values (0::bigint)$$,
+  'Manager cannot read another employee salary history'
+);
+
+select throws_ok(
+  $$select public.set_employee_compensation('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', current_date + 30, 42000, 0, 0, 'INR', 'Unauthorized change')$$,
+  '42501', 'Not authorized to manage payroll compensation',
+  'Manager cannot change compensation without payroll permission'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
+
+select results_eq(
+  $$select count(*)::bigint from public.employee_compensation where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Other tenant member cannot read compensation history'
 );
 
 select * from finish();
