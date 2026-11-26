@@ -33,7 +33,7 @@ begin
     raise exception 'Invalid task status' using errcode = '22023';
   end if;
   update public.tasks
-  set status = new_status,
+  set status = new_status::public.task_status,
       completed_at = case
         when new_status <> 'done' then null
         when status <> 'done' then now()
