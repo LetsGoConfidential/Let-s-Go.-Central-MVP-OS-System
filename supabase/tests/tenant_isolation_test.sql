@@ -1,6 +1,6 @@
 begin;
 
-select plan(142);
+select plan(153);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -821,7 +821,7 @@ select throws_ok(
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select results_eq(
-  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true,"hr.people.invite":true,"tasks.self.update":true}'::jsonb))$$,
+  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true,"hr.people.invite":true,"hr.attendance.manage":true,"tasks.self.update":true}'::jsonb))$$,
   $$values (true)$$,
   'Owner can create and assign an HR leave-review permission to a custom role'
 );
@@ -1096,6 +1096,83 @@ select is(
   (select count(*)::integer from public.attendance_days where organization_id = '20000000-0000-4000-8000-000000000001'),
   1,
   'Organization owner can review team attendance'
+);
+
+insert into public.attendance_days (organization_id, member_id, work_date, checked_in_at, checked_out_at)
+select '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003',
+  (now() at time zone o.timezone)::date, now() - interval '8 hours', now() - interval '1 hour'
+from public.organizations o where o.id = '20000000-0000-4000-8000-000000000001';
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select results_eq(
+  $$select status::text from public.attendance_corrections where id = public.submit_attendance_correction('20000000-0000-4000-8000-000000000001', (select id from public.attendance_days where member_id = '10000000-0000-4000-8000-000000000002' order by created_at desc limit 1), (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '8 hours', (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '1 hour', 'Clock was recorded late')$$,
+  $$values ('pending'::text)$$,
+  'Employee can submit a correction for their own attendance record'
+);
+
+select results_eq(
+  $$select count(*)::bigint from public.attendance_corrections where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (1::bigint)$$,
+  'Employee can read their own correction request'
+);
+
+select throws_ok(
+  $$select public.submit_attendance_correction('20000000-0000-4000-8000-000000000001', (select id from public.attendance_days where member_id = '10000000-0000-4000-8000-000000000003' order by created_at desc limit 1), (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '8 hours', (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '1 hour', 'Attempt to edit coworker')$$,
+  '42501', 'Attendance record not found',
+  'Employee cannot request a correction for a coworker attendance record'
+);
+
+select throws_ok(
+  $$select public.submit_attendance_correction('20000000-0000-4000-8000-000000000001', (select id from public.attendance_days where member_id = '10000000-0000-4000-8000-000000000002' order by created_at desc limit 1), (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '8 hours', (now() at time zone (select timezone from public.organizations where id = '20000000-0000-4000-8000-000000000001')) - interval '1 hour', 'Duplicate request')$$,
+  '23505', 'A correction is already pending for this workday',
+  'Employee cannot create a second pending correction for a workday'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+
+select results_eq(
+  $$select count(*)::bigint from public.attendance_corrections where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Manager without HR attendance permission cannot read correction requests'
+);
+
+select throws_ok(
+  $$select public.review_attendance_correction('20000000-0000-4000-8000-000000000001', (select id from public.attendance_corrections limit 1), 'approved')$$,
+  '42501', 'Not authorized to review attendance corrections',
+  'Manager without HR attendance permission cannot approve a correction'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+
+select results_eq(
+  $$select count(*)::bigint from public.attendance_corrections where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (1::bigint)$$,
+  'HR role can read attendance correction requests for its organization'
+);
+
+select results_eq(
+  $$select public.review_attendance_correction('20000000-0000-4000-8000-000000000001', (select id from public.attendance_corrections limit 1), 'approved')$$,
+  $$values (true)$$,
+  'HR role can approve an attendance correction'
+);
+
+select results_eq(
+  $$select status::text, decided_by::text from public.attendance_corrections where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values ('approved'::text, '10000000-0000-4000-8000-000000000002'::text)$$,
+  'Approved correction records its status and HR reviewer'
+);
+
+select results_eq(
+  $$select d.checked_in_at, d.checked_out_at from public.attendance_days d join public.attendance_corrections c on c.organization_id = d.organization_id and c.attendance_id = d.id where c.organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$select ((now() at time zone o.timezone) - interval '8 hours') at time zone o.timezone, ((now() at time zone o.timezone) - interval '1 hour') at time zone o.timezone from public.organizations o where o.id = '20000000-0000-4000-8000-000000000001'$$,
+  'Approval applies corrected organization-local times to the attendance record'
+);
+
+select throws_ok(
+  $$select public.submit_attendance_correction('20000000-0000-4000-8000-000000000002', (select id from public.attendance_days where member_id = '10000000-0000-4000-8000-000000000002' limit 1), now()::timestamp, null::timestamp, 'Cross tenant attempt')$$,
+  '42501', 'Not authorized to request attendance correction',
+  'Employee cannot create attendance corrections across tenant boundaries'
 );
 
 select * from finish();
