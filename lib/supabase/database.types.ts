@@ -17,7 +17,7 @@ export type Database = {
     Tables: {
       organizations: Table<{ id: string; name: string; slug: string; legal_name: string | null; timezone: string; currency: string; status: Database["public"]["Enums"]["record_status"]; ai_monthly_budget_usd: number | null; ai_budget_started_at: string | null; created_at: string; updated_at: string }>;
       profiles: Table<{ id: string; full_name: string; avatar_url: string | null; phone: string | null; created_at: string; updated_at: string }>;
-      org_members: Table<{ organization_id: string; user_id: string; role: Database["public"]["Enums"]["member_role"]; title: string | null; status: "invited" | "active" | "suspended"; joined_at: string | null; created_at: string }, [{ foreignKeyName: "org_members_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] }] >;
+      org_members: Table<{ organization_id: string; user_id: string; role: Database["public"]["Enums"]["member_role"]; title: string | null; department: string | null; status: "invited" | "active" | "suspended"; joined_at: string | null; created_at: string }, [{ foreignKeyName: "org_members_organization_id_fkey"; columns: ["organization_id"]; isOneToOne: false; referencedRelation: "organizations"; referencedColumns: ["id"] }] >;
       roles: Table<{ id: string; organization_id: string; name: string; is_system: boolean; permissions: Json; created_at: string }>;
       role_assignments: Table<{ organization_id: string; user_id: string; role_id: string }>;
       clients: Table<{ id: string; organization_id: string; name: string; industry: string | null; website: string | null; health: "healthy" | "needs_attention" | "at_risk" | "churned"; monthly_value: number; owner_id: string | null; notes: string | null; status: Database["public"]["Enums"]["record_status"]; created_at: string; updated_at: string }>;
@@ -73,6 +73,7 @@ export type Database = {
       update_organization_settings: { Args: { target_org: string; org_name: string; org_legal_name: string | null; org_timezone: string; org_currency: string }; Returns: boolean };
       accept_org_invitation: { Args: { target_org: string }; Returns: boolean };
       manage_org_member: { Args: { target_org: string; target_user: string; new_role: Database["public"]["Enums"]["member_role"]; new_status: string }; Returns: boolean };
+      set_member_department: { Args: { target_org: string; target_user: string; new_department: string | null }; Returns: boolean };
       revoke_org_invitation: { Args: { target_org: string; invitation_id: string }; Returns: boolean };
       save_custom_role: { Args: { target_org: string; role_name: string; permission_doc: Json }; Returns: string };
       assign_custom_role: { Args: { target_org: string; target_user: string; target_role: string | null }; Returns: boolean };

@@ -1,6 +1,6 @@
 begin;
 
-select plan(103);
+select plan(105);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -776,6 +776,12 @@ select results_eq(
   'Manager without organization.manage cannot suspend a workspace member'
 );
 
+select throws_ok(
+  $$select public.set_member_department('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'Sales')$$,
+  '42501', 'Not authorized to manage organization departments',
+  'Manager without organization.manage cannot assign employee departments'
+);
+
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select public.create_invoice_with_item(
@@ -831,6 +837,12 @@ select results_eq(
   $$insert into public.employee_kpi_goals (organization_id, member_id, metric_key, title, target, unit, period_start, period_end) values ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'tasks_completed', 'RLS owner-created KPI goal', 12, 'count', '2026-12-01', '2026-12-31') returning title::text$$,
   $$values ('RLS owner-created KPI goal'::text)$$,
   'Organization owner can create an employee KPI goal'
+);
+
+select results_eq(
+  $$select public.set_member_department('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'Sales')$$,
+  $$values (true)$$,
+  'Organization owner can assign a department to an employee'
 );
 
 select * from finish();

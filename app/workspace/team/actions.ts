@@ -88,6 +88,18 @@ export async function updateTeamMember(formData: FormData) {
   redirect(teamUrl(organizationId, "member-updated"));
 }
 
+export async function updateMemberDepartment(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const userId = String(formData.get("user_id") ?? "");
+  const department = String(formData.get("department") ?? "").trim();
+  if (!organizationId || !userId || department.length > 80 || (department.length > 0 && department.length < 2)) redirect(teamUrl(organizationId, "invalid"));
+  const { supabase } = await authorized(organizationId);
+  const { data: updated, error } = await supabase.rpc("set_member_department", { target_org: organizationId, target_user: userId, new_department: department || null });
+  if (error || !updated) redirect(teamUrl(organizationId, "member-failed"));
+  revalidatePath("/workspace/team"); revalidatePath(`/workspace/team/${userId}`);
+  redirect(teamUrl(organizationId, "department-updated"));
+}
+
 export async function revokeTeamInvitation(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   const invitationId = String(formData.get("invitation_id") ?? "");
