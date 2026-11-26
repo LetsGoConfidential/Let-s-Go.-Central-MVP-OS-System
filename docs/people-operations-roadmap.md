@@ -12,7 +12,7 @@ Compensation changes, increments, and bonuses need a separate restricted approva
 
 ## Sequence
 
-1. **KPI foundations:** department field and role-aware home navigation; employee scorecards with definitions, task-derived metrics, manager-set goals, and employee-visible progress. Build this before compensation or payroll.
+1. **KPI foundations:** initial manager goals and task/CRM scorecards are implemented. Next add departments, role-aware home navigation, and organization-configured metrics before compensation or payroll.
 2. **HR basics:** configurable leave types, balances, requests, approvals, and auditable attendance events/corrections. Add employee self-service and manager/HR queues.
 3. **Compensation controls:** proposed increments/bonuses, approval states, effective dates, and access restrictions; keep a full audit trail.
 4. **Payroll readiness:** employee pay profiles and payroll periods, a draft-to-approved calculation workflow, and restricted export. Start with explicit organization-configured pay rules; do not claim statutory payroll compliance until local rules and a payroll provider are configured and reviewed.
@@ -26,4 +26,4 @@ Prioritize email notifications, Slack, WhatsApp Business Platform, and CRM impor
 
 ## Release status
 
-Current code has task-based team workload, private monthly performance reviews, a tenant-scoped integration registry, Slack OAuth/send foundations, and task automation. It does not yet provide KPI goal tracking, departments, leave, attendance, compensation, payroll, WhatsApp, or general-purpose CRM connectors. These are planned implementation slices, not completed or target-environment verified features.
+Current code has task-based team workload, private monthly performance reviews, KPI goals for completed tasks/on-time delivery/owned won leads, a tenant-scoped integration registry, Slack OAuth/send foundations, and task automation. Departments, leave, attendance, compensation, payroll, WhatsApp, and general-purpose CRM connectors remain unimplemented. These are planned implementation slices, not completed or target-environment verified features.

@@ -1,5 +1,5 @@
 // Schema snapshot based on the checked-in migrations. Regenerate from the local
-// Supabase database with `pnpm db:types` after applying migrations 001-026.
+// Supabase database with `pnpm db:types` after applying migrations 001-028.
 // Relationship metadata mirrors the migration foreign keys until the local
 // Supabase project is available for CLI generation.
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];

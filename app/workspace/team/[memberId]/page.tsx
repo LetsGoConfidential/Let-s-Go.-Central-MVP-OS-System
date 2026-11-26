@@ -12,6 +12,19 @@ function currentMonth(timeZone: string) {
 }
 function validMonth(value?: string) { return value && /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : null; }
 function monthLabel(value: string) { return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${value}-01T00:00:00Z`)); }
+function nextDate(value: string) { const date = new Date(`${value}T00:00:00.000Z`); date.setUTCDate(date.getUTCDate() + 1); return date.toISOString().slice(0, 10); }
+function zonedDateStart(value: string, timeZone: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  const desiredUtc = Date.UTC(year, month - 1, day);
+  let timestamp = desiredUtc;
+  const formatter = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const parts = Object.fromEntries(formatter.formatToParts(new Date(timestamp)).map(({ type, value: part }) => [type, part]));
+    const representedUtc = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
+    timestamp += desiredUtc - representedUtc;
+  }
+  return new Date(timestamp).toISOString();
+}
 
 export default async function TeamMemberPage({ params, searchParams }: { params: Promise<{ memberId: string }>; searchParams: Promise<{ organization?: string; month?: string; error?: string; saved?: string; kpi_saved?: string }> }) {
   const [{ memberId }, query] = await Promise.all([params, searchParams]);
@@ -44,16 +57,19 @@ export default async function TeamMemberPage({ params, searchParams }: { params:
   ]);
   const kpiActuals = new Map<string, number>();
   await Promise.all((kpiGoals ?? []).map(async (goal) => {
-    const start = `${goal.period_start}T00:00:00.000Z`;
-    const endDate = new Date(`${goal.period_end}T00:00:00.000Z`);
-    endDate.setUTCDate(endDate.getUTCDate() + 1);
-    const end = endDate.toISOString();
+    const start = zonedDateStart(goal.period_start, org.timezone);
+    const end = zonedDateStart(nextDate(goal.period_end), org.timezone);
     if (goal.metric_key === "tasks_completed") {
       const { count } = await supabase.from("tasks").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("assignee_id", memberId).eq("status", "done").gte("completed_at", start).lt("completed_at", end);
       kpiActuals.set(goal.id, count ?? 0);
     } else if (goal.metric_key === "tasks_on_time") {
-      const { data } = await supabase.from("tasks").select("due_at,completed_at").eq("organization_id", organizationId).eq("assignee_id", memberId).eq("status", "done").not("due_at", "is", null).gte("completed_at", start).lt("completed_at", end).limit(1000);
-      const scheduled = data ?? [];
+      const scheduled: { due_at: string | null; completed_at: string | null }[] = [];
+      for (let offset = 0; ; offset += 500) {
+        const { data } = await supabase.from("tasks").select("id,due_at,completed_at").eq("organization_id", organizationId).eq("assignee_id", memberId).eq("status", "done").not("due_at", "is", null).gte("completed_at", start).lt("completed_at", end).order("id").range(offset, offset + 499);
+        const rows = data ?? [];
+        scheduled.push(...rows);
+        if (rows.length < 500) break;
+      }
       kpiActuals.set(goal.id, scheduled.length ? Math.round(scheduled.filter((task) => task.due_at && task.completed_at && Date.parse(task.completed_at) <= Date.parse(task.due_at)).length * 100 / scheduled.length) : 0);
     } else {
       const { count } = await supabase.from("leads").select("id", { count: "exact", head: true }).eq("organization_id", organizationId).eq("owner_id", memberId).eq("stage", "won").gte("created_at", start).lt("created_at", end);
