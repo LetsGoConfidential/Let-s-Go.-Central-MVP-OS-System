@@ -232,8 +232,9 @@ export async function markInvoiceSent(formData: FormData) {
   const invoiceId = String(formData.get("invoice_id") ?? "");
   if (!organizationId || !invoiceId) fail(organizationId);
   const supabase = await authorizedFinanceClient(organizationId);
-  const { error } = await supabase.from("invoices").update({ status: "sent" }).eq("id", invoiceId).eq("organization_id", organizationId).eq("status", "draft");
-  if (error) fail(organizationId, "save");
+  const { data: updatedInvoice, error } = await supabase.from("invoices").update({ status: "sent" })
+    .eq("id", invoiceId).eq("organization_id", organizationId).eq("status", "draft").select("id").maybeSingle();
+  if (error || !updatedInvoice) fail(organizationId, "save");
   revalidatePath("/workspace");
   revalidatePath("/workspace/finance");
   redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&updated=invoice`);

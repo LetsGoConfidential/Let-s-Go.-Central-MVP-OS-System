@@ -65,7 +65,7 @@ export default async function FinancePage({ searchParams }: { searchParams: Prom
   const messages: Record<string, string> = {
     forbidden: "Your role does not have permission to manage finance records.",
     invalid: "Check the required fields, amounts, dates, and invoice balance.",
-    save: "That finance record could not be saved. Check that the quotation is accepted and still valid before converting it.",
+    save: "That finance change could not be saved. Check the record status and required details, then try again.",
   };
   const createdLabels: Record<string, string> = { invoice: "Draft invoice saved.", quotation: "Quotation draft saved.", payment: "Payment recorded and invoice balance reconciled.", expense: "Expense saved.", credit: "Credit note issued and the receivable updated.", refund: "Refund recorded and the invoice balance reconciled." };
   const invoiceClientName = (invoice: NonNullable<typeof invoices>[number]) => Array.isArray(invoice.clients) ? invoice.clients[0]?.name ?? "Client" : invoice.clients?.name ?? "Client";
