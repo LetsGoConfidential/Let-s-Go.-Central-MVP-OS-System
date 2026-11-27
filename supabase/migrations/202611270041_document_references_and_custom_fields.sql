@@ -13,8 +13,8 @@ begin
     return false;
   end if;
   for field in select value from jsonb_array_elements(target_fields) as entries(value) loop
-    if jsonb_typeof(field) is distinct from 'object' or jsonb_object_length(field) <> 2
-      or not (field ? 'label') or not (field ? 'value') then return false; end if;
+    if jsonb_typeof(field) is distinct from 'object' then return false; end if;
+    if field - 'label' - 'value' <> '{}'::jsonb or not (field ? 'label') or not (field ? 'value') then return false; end if;
     field_label := btrim(coalesce(field ->> 'label', ''));
     field_value := btrim(coalesce(field ->> 'value', ''));
     if char_length(field_label) not between 1 and 60 or char_length(field_value) not between 1 and 240
