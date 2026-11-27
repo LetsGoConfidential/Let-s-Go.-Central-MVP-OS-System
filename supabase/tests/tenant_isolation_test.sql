@@ -1,6 +1,6 @@
 begin;
 
-select plan(238);
+select plan(239);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -1590,8 +1590,14 @@ select throws_ok(
 update public.invoices set status = 'sent' where invoice_number = 'RLS-DOC-REFERENCE-CONVERTED-001';
 select throws_ok(
   $$update public.invoices set document_terms = 'Changed after issue' where invoice_number = 'RLS-DOC-REFERENCE-CONVERTED-001'$$,
+  '42501', 'permission denied for table invoices', 'Authenticated users cannot bypass restricted invoice column grants'
+);
+set local role postgres;
+select throws_ok(
+  $$update public.invoices set document_terms = 'Changed after issue' where invoice_number = 'RLS-DOC-REFERENCE-CONVERTED-001'$$,
   '22023', 'Document references cannot be changed after issue', 'Converted invoice terms are immutable after issue'
 );
+set local role authenticated;
 select throws_ok(
   $$select public.create_invoice_document_from_template('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS-DOC-REFERENCE-TOO-MUCH-NOTES', 'INR', 0, current_date, current_date + 7, '[{"description":"Service","quantity":1,"unit":"unit","unit_price":1}]'::jsonb, '', '[]'::jsonb, repeat('x', 2001), '', '', (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'invoice' and is_default))$$,
   '22023', 'Invalid document references, fields, or terms', 'Invoice notes over the maximum length are rejected'
