@@ -1,6 +1,6 @@
 begin;
 
-select plan(233);
+select plan(238);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -1544,6 +1544,7 @@ select ok(public.create_invoice_document_from_template(
   'RLS-DOC-REFERENCE-INVOICE-001', 'INR', 0, current_date, current_date + 7,
   '[{"group_name":"Delivery","description":"Website launch","quantity":1,"unit":"project","unit_price":900}]'::jsonb,
   'PO-LG-2026-14', '[{"label":"Campaign","value":"Winter launch"},{"label":"Contact ref","value":"Client AP 27"}]'::jsonb,
+  'Launch planned for the second week.', E'Payment due in 14 days.\nGST charged as applicable.', 'Authorised Signatory',
   (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'invoice' and is_default)
 ) is not null, 'Invoice creation accepts a purchase order and custom fields');
 select results_eq(
@@ -1551,11 +1552,17 @@ select results_eq(
   $$values ('PO-LG-2026-14'::text, 'Campaign'::text, 'Winter launch'::text)$$,
   'Invoice stores its reference and custom fields'
 );
+select results_eq(
+  $$select document_notes, document_terms, signature_label from public.invoices where invoice_number = 'RLS-DOC-REFERENCE-INVOICE-001'$$,
+  $$values ('Launch planned for the second week.'::text, E'Payment due in 14 days.\nGST charged as applicable.'::text, 'Authorised Signatory'::text)$$,
+  'Invoice stores notes, ordered terms text, and signature label'
+);
 select ok(public.create_quotation_document_from_template(
   '20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001',
   'RLS-DOC-REFERENCE-QUOTE-001', 'INR', 0, current_date, current_date + 14,
   '[{"group_name":"Delivery","description":"Website launch","quantity":1,"unit":"project","unit_price":900}]'::jsonb,
   'PO-LG-QUOTE-16', '[{"label":"Campaign","value":"Winter launch"}]'::jsonb,
+  'Campaign starts after approval.', E'50% advance payment.\nRemaining due at delivery.', 'Founder',
   (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'quotation' and is_default)
 ) is not null, 'Quotation creation accepts a purchase order and custom fields');
 select results_eq(
@@ -1563,22 +1570,39 @@ select results_eq(
   $$values ('PO-LG-QUOTE-16'::text, 'Campaign'::text, 'Winter launch'::text)$$,
   'Quotation stores its reference and custom fields'
 );
+select results_eq(
+  $$select document_notes, document_terms, signature_label from public.quotations where quotation_number = 'RLS-DOC-REFERENCE-QUOTE-001'$$,
+  $$values ('Campaign starts after approval.'::text, E'50% advance payment.\nRemaining due at delivery.'::text, 'Founder'::text)$$,
+  'Quotation stores notes, ordered terms text, and signature label'
+);
 select ok(public.transition_quotation('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-DOC-REFERENCE-QUOTE-001'), 'send'), 'Quotation with reference details can be sent');
 select ok(public.transition_quotation('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-DOC-REFERENCE-QUOTE-001'), 'accept'), 'Quotation with reference details can be accepted');
 select ok(public.convert_quotation_to_invoice('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-DOC-REFERENCE-QUOTE-001'), 'RLS-DOC-REFERENCE-CONVERTED-001', current_date, current_date + 7) is not null, 'Quotation carrying custom fields converts to invoice');
 select results_eq(
-  $$select purchase_order_number, custom_fields -> 0 ->> 'label', custom_fields -> 0 ->> 'value' from public.invoices where invoice_number = 'RLS-DOC-REFERENCE-CONVERTED-001'$$,
-  $$values ('PO-LG-QUOTE-16'::text, 'Campaign'::text, 'Winter launch'::text)$$,
-  'Quotation conversion carries PO and custom fields to the invoice'
+  $$select purchase_order_number, custom_fields -> 0 ->> 'label', custom_fields -> 0 ->> 'value', document_notes, document_terms, signature_label from public.invoices where invoice_number = 'RLS-DOC-REFERENCE-CONVERTED-001'$$,
+  $$values ('PO-LG-QUOTE-16'::text, 'Campaign'::text, 'Winter launch'::text, 'Campaign starts after approval.'::text, E'50% advance payment.\nRemaining due at delivery.'::text, 'Founder'::text)$$,
+  'Quotation conversion carries reference and signing content to the invoice'
 );
 select throws_ok(
   $$update public.quotations set purchase_order_number = 'POST-ISSUE-CHANGE' where quotation_number = 'RLS-DOC-REFERENCE-QUOTE-001'$$,
   '22023', 'Document references cannot be changed after issue', 'Issued quotation references and custom fields are immutable'
 );
+select throws_ok(
+  $$update public.invoices set document_terms = 'Changed after issue' where invoice_number = 'RLS-DOC-REFERENCE-CONVERTED-001'$$,
+  '22023', 'Document references cannot be changed after issue', 'Converted invoice terms are immutable after issue'
+);
+select throws_ok(
+  $$select public.create_invoice_document_from_template('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS-DOC-REFERENCE-TOO-MUCH-NOTES', 'INR', 0, current_date, current_date + 7, '[{"description":"Service","quantity":1,"unit":"unit","unit_price":1}]'::jsonb, '', '[]'::jsonb, repeat('x', 2001), '', '', (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'invoice' and is_default))$$,
+  '22023', 'Invalid document references, fields, or terms', 'Invoice notes over the maximum length are rejected'
+);
+select throws_ok(
+  $$select public.create_quotation_document_from_template('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS-DOC-REFERENCE-TOO-MUCH-TERMS', 'INR', 0, current_date, current_date + 7, '[{"description":"Service","quantity":1,"unit":"unit","unit_price":1}]'::jsonb, '', '[]'::jsonb, '', repeat('x', 5001), '', (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'quotation' and is_default))$$,
+  '22023', 'Invalid document references, fields, or terms', 'Quotation terms over the maximum length are rejected'
+);
 select ok(not public.finance_custom_fields_valid('[{"label":"Campaign","value":"Winter launch","unexpected":"data"}]'::jsonb), 'Custom field payload rejects unexpected keys');
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
 select throws_ok(
-  $$select public.create_invoice_document_from_template('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS-DOC-REFERENCE-EMPLOYEE', 'INR', 0, current_date, current_date + 7, '[{"description":"Not allowed","quantity":1,"unit":"unit","unit_price":1}]'::jsonb, '', '[]'::jsonb)$$,
+  $$select public.create_invoice_document_from_template('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS-DOC-REFERENCE-EMPLOYEE', 'INR', 0, current_date, current_date + 7, '[{"description":"Not allowed","quantity":1,"unit":"unit","unit_price":1}]'::jsonb, '', '[]'::jsonb, '', '', '')$$,
   '42501', 'Finance permission required', 'Employee cannot create invoices with references or custom fields'
 );
 

@@ -83,13 +83,16 @@ export async function createInvoice(formData: FormData) {
   const invoiceNumber = String(formData.get("invoice_number") ?? "").trim();
   const templateId = String(formData.get("document_template_id") ?? "");
   const purchaseOrderNumber = String(formData.get("purchase_order_number") ?? "").trim();
+  const documentNotes = String(formData.get("document_notes") ?? "").trim();
+  const documentTerms = String(formData.get("document_terms") ?? "").trim();
+  const signatureLabel = String(formData.get("signature_label") ?? "").trim();
   const customFields = readDocumentCustomFields(formData, organizationId);
   const currency = String(formData.get("currency") ?? "INR").toUpperCase();
   const tax = Number(formData.get("tax") ?? 0);
   const issueDate = String(formData.get("issue_date") ?? "");
   const dueDate = String(formData.get("due_date") ?? "");
   const lines = readDocumentLines(formData, organizationId, tax);
-  if (!organizationId || !clientId || invoiceNumber.length < 2 || invoiceNumber.length > 40 || purchaseOrderNumber.length > 60 || !/^[A-Z]{3}$/.test(currency) || !/^\d{4}-\d{2}-\d{2}$/.test(issueDate) || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || dueDate < issueDate) fail(organizationId);
+  if (!organizationId || !clientId || invoiceNumber.length < 2 || invoiceNumber.length > 40 || purchaseOrderNumber.length > 60 || documentNotes.length > 2000 || documentTerms.length > 5000 || signatureLabel.length > 80 || !/^[A-Z]{3}$/.test(currency) || !/^\d{4}-\d{2}-\d{2}$/.test(issueDate) || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || dueDate < issueDate) fail(organizationId);
 
   const supabase = await authorizedFinanceClient(organizationId);
   const { error } = await supabase.rpc("create_invoice_document_from_template", {
@@ -103,6 +106,9 @@ export async function createInvoice(formData: FormData) {
     target_items: lines as unknown as Json,
     document_purchase_order: purchaseOrderNumber,
     document_custom_fields: customFields as unknown as Json,
+    document_notes: documentNotes,
+    document_terms: documentTerms,
+    document_signature_label: signatureLabel,
     selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");
@@ -117,6 +123,9 @@ export async function createQuotation(formData: FormData) {
   const quotationNumber = String(formData.get("quotation_number") ?? "").trim();
   const templateId = String(formData.get("document_template_id") ?? "");
   const purchaseOrderNumber = String(formData.get("purchase_order_number") ?? "").trim();
+  const documentNotes = String(formData.get("document_notes") ?? "").trim();
+  const documentTerms = String(formData.get("document_terms") ?? "").trim();
+  const signatureLabel = String(formData.get("signature_label") ?? "").trim();
   const customFields = readDocumentCustomFields(formData, organizationId);
   const currency = String(formData.get("currency") ?? "INR").toUpperCase();
   const tax = Number(formData.get("tax") ?? 0);
@@ -124,7 +133,7 @@ export async function createQuotation(formData: FormData) {
   const validUntil = String(formData.get("valid_until") ?? "");
   const datePattern = /^\d{4}-\d{2}-\d{2}$/;
   const lines = readDocumentLines(formData, organizationId, tax);
-  if (!organizationId || !clientId || quotationNumber.length < 2 || quotationNumber.length > 40 || purchaseOrderNumber.length > 60
+  if (!organizationId || !clientId || quotationNumber.length < 2 || quotationNumber.length > 40 || purchaseOrderNumber.length > 60 || documentNotes.length > 2000 || documentTerms.length > 5000 || signatureLabel.length > 80
     || !/^[A-Z]{3}$/.test(currency) || !datePattern.test(issueDate)
     || !datePattern.test(validUntil) || validUntil < issueDate) fail(organizationId);
 
@@ -140,6 +149,9 @@ export async function createQuotation(formData: FormData) {
     target_items: lines as unknown as Json,
     document_purchase_order: purchaseOrderNumber,
     document_custom_fields: customFields as unknown as Json,
+    document_notes: documentNotes,
+    document_terms: documentTerms,
+    document_signature_label: signatureLabel,
     selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");
