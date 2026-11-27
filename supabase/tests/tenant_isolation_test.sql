@@ -1651,7 +1651,7 @@ select ok(public.set_recurring_invoice_schedule_status(
   (select id from public.recurring_invoice_schedules where invoice_prefix = 'RLS-RECUR'), 'paused'
 ), 'Finance owner can pause an active recurring schedule');
 select results_eq(
-  $$select public.generate_due_recurring_invoice_drafts('20000000-0000-4000-8000-000000000001', current_date + interval '2 months', 10)$$,
+  $$select public.generate_due_recurring_invoice_drafts('20000000-0000-4000-8000-000000000001', (current_date + interval '2 months')::date, 10)$$,
   $$values (0)$$,
   'Paused schedules do not generate invoices even when their date is due'
 );
@@ -1660,7 +1660,7 @@ select ok(public.set_recurring_invoice_schedule_status(
   (select id from public.recurring_invoice_schedules where invoice_prefix = 'RLS-RECUR'), 'active'
 ), 'Finance owner can resume a paused recurring schedule');
 select results_eq(
-  $$select public.generate_due_recurring_invoice_drafts('20000000-0000-4000-8000-000000000001', current_date + interval '1 month', 10)$$,
+  $$select public.generate_due_recurring_invoice_drafts('20000000-0000-4000-8000-000000000001', (current_date + interval '1 month')::date, 10)$$,
   $$values (1)$$,
   'Resumed schedule creates its next due draft'
 );
