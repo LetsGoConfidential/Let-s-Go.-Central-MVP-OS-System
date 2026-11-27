@@ -1,6 +1,6 @@
 begin;
 
-select plan(253);
+select plan(270);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -9,7 +9,8 @@ insert into auth.users (
   ('10000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'rls-owner@example.test', '', now(), '{}', '{}', now(), now()),
   ('10000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'rls-member@example.test', '', now(), '{}', '{}', now(), now()),
   ('10000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'rls-manager@example.test', '', now(), '{}', '{}', now(), now()),
-  ('10000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'rls-tenant-b-member@example.test', '', now(), '{}', '{}', now(), now());
+  ('10000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'rls-tenant-b-member@example.test', '', now(), '{}', '{}', now(), now()),
+  ('10000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'rls-employee@example.test', '', now(), '{}', '{}', now(), now());
 
 insert into public.organizations (id, name, slug)
 values
@@ -21,7 +22,8 @@ values
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', 'owner', 'active', now()),
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'member', 'active', now()),
   ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000003', 'manager', 'active', now()),
-  ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'owner', 'active', now());
+  ('20000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000004', 'owner', 'active', now()),
+  ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000005', 'member', 'active', now());
 
 insert into public.leave_requests (organization_id, member_id, leave_type, start_date, end_date, reason)
 values ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', 'Annual', '2026-12-10', '2026-12-11', 'RLS private leave fixture');
@@ -826,7 +828,7 @@ select throws_ok(
 set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
 
 select results_eq(
-  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true,"hr.people.invite":true,"hr.attendance.manage":true,"hr.payroll.manage":true,"tasks.self.update":true}'::jsonb))$$,
+  $$select public.assign_custom_role('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002', public.save_custom_role('20000000-0000-4000-8000-000000000001', 'RLS HR Specialist', '{"hr.leave.manage":true,"hr.people.invite":true,"hr.attendance.manage":true,"hr.payroll.manage":true,"hr.documents.manage":true,"tasks.self.update":true}'::jsonb))$$,
   $$values (true)$$,
   'Owner can create and assign an HR leave-review permission to a custom role'
 );
@@ -1685,6 +1687,100 @@ select throws_ok(
   $$select public.create_recurring_invoice_schedule('20000000-0000-4000-8000-000000000001', (select id from public.invoices where invoice_number = 'RLS-DOC-REFERENCE-INVOICE-001'), 'monthly', current_date + 10, current_date + 5, 'RLS-BAD')$$,
   '22023', 'Invalid recurring invoice schedule', 'Recurring schedule cannot end before its first invoice date'
 );
+
+select is(public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.documents.manage'), true,
+  'Owner can manage private employee documents');
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+select is(public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.documents.manage'), false,
+  'Manager does not inherit access to private HR documents');
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+select is(public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.documents.manage'), true,
+  'HR document access is independently granted through a custom role');
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000005';
+select is(public.has_org_permission('20000000-0000-4000-8000-000000000001', 'hr.documents.manage'), false,
+  'Employee cannot manage team documents');
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+select set_config('test.visible_employee_doc', public.create_employee_document(
+  '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000005',
+  'contract', 'employment-contract.pdf', 'application/pdf', 1200, true)::text, true);
+select set_config('test.private_employee_doc', public.create_employee_document(
+  '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000005',
+  'identity', 'identity-card.pdf', 'application/pdf', 900, false)::text, true);
+select set_config('test.hr_employee_doc', public.create_employee_document(
+  '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000002',
+  'contract', 'hr-specialist-contract.pdf', 'application/pdf', 1600, true)::text, true);
+insert into storage.objects (bucket_id, name) values
+  ('employee-files', '20000000-0000-4000-8000-000000000001/10000000-0000-4000-8000-000000000005/' || current_setting('test.visible_employee_doc')),
+  ('employee-files', '20000000-0000-4000-8000-000000000001/10000000-0000-4000-8000-000000000005/' || current_setting('test.private_employee_doc')),
+  ('employee-files', '20000000-0000-4000-8000-000000000001/10000000-0000-4000-8000-000000000002/' || current_setting('test.hr_employee_doc'));
+select results_eq(
+  $$select count(*)::bigint from public.employee_documents where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (3::bigint)$$,
+  'Owner can list all HR documents in its organization'
+);
+
+set local role authenticated;
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000005';
+select results_eq(
+  $$select count(*)::bigint from public.employee_documents where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (1::bigint)$$,
+  'Employee sees only their documents marked visible'
+);
+select results_eq(
+  $$select count(*)::bigint from public.employee_documents where id = current_setting('test.private_employee_doc')::uuid$$,
+  $$values (0::bigint)$$,
+  'Employee cannot read an HR-only identity document'
+);
+select results_eq(
+  $$select count(*)::bigint from public.employee_documents where id = current_setting('test.hr_employee_doc')::uuid$$,
+  $$values (0::bigint)$$,
+  'Employee cannot read a coworker contract'
+);
+select results_eq(
+  $$select count(*)::bigint from storage.objects where bucket_id = 'employee-files' and name like '20000000-0000-4000-8000-000000000001/10000000-0000-4000-8000-000000000005/%'$$,
+  $$values (1::bigint)$$,
+  'Employee storage access is limited to their visible file'
+);
+select throws_ok(
+  $$select public.create_employee_document('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000005', 'other', 'forged.pdf', 'application/pdf', 100, true)$$,
+  '42501', 'HR document permission required', 'Employee cannot create HR records through the privileged RPC'
+);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+select results_eq(
+  $$select count(*)::bigint from public.employee_documents where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Manager cannot list employee documents by default'
+);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
+select results_eq(
+  $$select count(*)::bigint from public.employee_documents where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Different tenant cannot list employee documents'
+);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000002';
+select results_eq(
+  $$select count(*)::bigint from public.employee_documents where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (3::bigint)$$,
+  'HR role can review all employee files in its organization'
+);
+select ok(public.create_employee_document(
+  '20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000005',
+  'certificate', 'safety-certificate.pdf', 'application/pdf', 800, true
+) is not null, 'HR role can add employee document metadata');
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+select ok(public.delete_employee_document('20000000-0000-4000-8000-000000000001', current_setting('test.visible_employee_doc')::uuid),
+  'Owner can delete employee document metadata through the audited RPC');
+select results_eq(
+  $$select count(*)::bigint from storage.objects where bucket_id = 'employee-files' and name = '20000000-0000-4000-8000-000000000001/10000000-0000-4000-8000-000000000005/' || current_setting('test.visible_employee_doc')$$,
+  $$values (0::bigint)$$,
+  'Storage RLS hides an object as soon as its document record is removed'
+);
+select ok(exists (
+  select 1 from public.audit_logs where organization_id = '20000000-0000-4000-8000-000000000001'
+    and entity_type = 'employee_documents' and entity_id = current_setting('test.visible_employee_doc') and action = 'delete'
+), 'Document deletion is audited without storing file contents');
 
 select * from finish();
 rollback;

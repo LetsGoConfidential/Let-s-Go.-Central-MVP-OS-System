@@ -24,6 +24,7 @@ export async function saveCustomRole(formData: FormData) {
     "hr.leave.manage": formData.get("leave_manage") === "on",
     "hr.attendance.manage": formData.get("attendance_manage") === "on",
     "hr.payroll.manage": formData.get("payroll_manage") === "on",
+    "hr.documents.manage": formData.get("documents_manage") === "on",
     "hr.people.invite": formData.get("people_invite") === "on",
     "tasks.self.update": formData.get("self_task_update") === "on",
   };

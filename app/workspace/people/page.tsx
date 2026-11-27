@@ -18,7 +18,7 @@ export default async function PeopleHub({ searchParams }: { searchParams: Promis
   const cards = [
     { title: "Attendance", detail: "Check in/out and review your workday history.", href: `/workspace/attendance?organization=${orgId}`, icon: CalendarClock, state: "Available" },
     { title: "Leave & time off", detail: "Submit leave and follow approval status.", href: `/workspace/leave?organization=${orgId}`, icon: FileText, state: "Available" },
-    { title: "HR records", detail: "Employee documents and contracts need restricted HR access before storage is enabled.", href: `/workspace/team?organization=${orgId}`, icon: FileText, state: "Planned" },
+    { title: "HR documents", detail: "Store private contracts and employee files with separate HR and self-view permissions.", href: `/workspace/people/documents?organization=${orgId}`, icon: FileText, state: "Available" },
     { title: "Payroll & compensation", detail: "Manage private compensation, monthly draft runs, approved pay statements, and payment status.", href: `/workspace/people/payroll?organization=${orgId}`, icon: WalletCards, state: "Available" },
   ];
   const { data: canManageAttendance } = await supabase.rpc("has_org_permission", { target_org: orgId, permission_key: "hr.attendance.manage" });
