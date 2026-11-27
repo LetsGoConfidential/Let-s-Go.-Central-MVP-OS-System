@@ -336,3 +336,69 @@ export async function createExpense(formData: FormData) {
   revalidatePath("/workspace/finance");
   redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&created=expense`);
 }
+
+export async function createRecurringInvoiceSchedule(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const invoiceId = String(formData.get("source_invoice_id") ?? "");
+  const cadence = String(formData.get("cadence") ?? "");
+  const firstRun = String(formData.get("first_invoice_on") ?? "");
+  const endsOn = String(formData.get("ends_on") ?? "");
+  const prefix = String(formData.get("invoice_prefix") ?? "").trim();
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!uuidPattern.test(organizationId) || !uuidPattern.test(invoiceId)
+    || !["monthly", "quarterly", "yearly"].includes(cadence)
+    || !datePattern.test(firstRun) || (endsOn && (!datePattern.test(endsOn) || endsOn < firstRun))
+    || !/^[A-Za-z0-9-]{2,20}$/.test(prefix)) fail(organizationId);
+  const supabase = await authorizedFinanceClient(organizationId);
+  const { error } = await supabase.rpc("create_recurring_invoice_schedule", {
+    target_org: organizationId,
+    source_invoice: invoiceId,
+    invoice_cadence: cadence,
+    first_run: firstRun,
+    end_on: endsOn || null,
+    number_prefix: prefix,
+  });
+  if (error) fail(organizationId, "save");
+  revalidatePath("/workspace/finance");
+  redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&created=recurring`);
+}
+
+export async function generateRecurringInvoiceDrafts(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  if (!organizationId) fail(organizationId);
+  const supabase = await authorizedFinanceClient(organizationId);
+  const { data: organization } = await supabase.from("organizations").select("timezone").eq("id", organizationId).maybeSingle();
+  const throughDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: organization?.timezone || "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const { data, error } = await supabase.rpc("generate_due_recurring_invoice_drafts", {
+    target_org: organizationId,
+    through_date: throughDate,
+    batch_limit: 50,
+  });
+  if (error) fail(organizationId, "save");
+  revalidatePath("/workspace");
+  revalidatePath("/workspace/finance");
+  redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&generated=${Math.max(0, Number(data ?? 0))}`);
+}
+
+export async function setRecurringInvoiceScheduleStatus(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const scheduleId = String(formData.get("schedule_id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuidPattern.test(organizationId) || !uuidPattern.test(scheduleId) || !["active", "paused"].includes(status)) fail(organizationId);
+  const supabase = await authorizedFinanceClient(organizationId);
+  const { data, error } = await supabase.rpc("set_recurring_invoice_schedule_status", {
+    target_org: organizationId,
+    target_schedule: scheduleId,
+    new_status: status,
+  });
+  if (error || !data) fail(organizationId, "save");
+  revalidatePath("/workspace/finance");
+  redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&updated=recurring`);
+}

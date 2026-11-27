@@ -1,6 +1,6 @@
 begin;
 
-select plan(239);
+select plan(253);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -1611,6 +1611,79 @@ set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
 select throws_ok(
   $$select public.create_invoice_document_from_template('20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001', 'RLS-DOC-REFERENCE-EMPLOYEE', 'INR', 0, current_date, current_date + 7, '[{"description":"Not allowed","quantity":1,"unit":"unit","unit_price":1}]'::jsonb, '', '[]'::jsonb, '', '', '')$$,
   '42501', 'Finance permission required', 'Employee cannot create invoices with references or custom fields'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+select ok(public.create_recurring_invoice_schedule(
+  '20000000-0000-4000-8000-000000000001',
+  (select id from public.invoices where invoice_number = 'RLS-DOC-REFERENCE-INVOICE-001'),
+  'monthly', current_date, null, 'RLS-RECUR'
+) is not null, 'Finance owner can create a monthly draft schedule from a tenant invoice');
+select results_eq(
+  $$select cadence, generated_count, next_invoice_on, status from public.recurring_invoice_schedules where invoice_prefix = 'RLS-RECUR'$$,
+  $$values ('monthly'::text, 0, current_date, 'active'::text)$$,
+  'Recurring schedule stores its first date, cadence, and active state'
+);
+select results_eq(
+  $$select public.generate_due_recurring_invoice_drafts('20000000-0000-4000-8000-000000000001', current_date, 10)$$,
+  $$values (1)$$,
+  'Running due schedules creates one draft invoice'
+);
+select results_eq(
+  $$select i.purchase_order_number, i.custom_fields -> 0 ->> 'label', i.document_notes, i.document_terms, i.signature_label, i.subtotal::numeric, i.total::numeric
+    from public.recurring_invoice_occurrences o join public.invoices i on i.organization_id = o.organization_id and i.id = o.invoice_id
+    where o.schedule_id = (select id from public.recurring_invoice_schedules where invoice_prefix = 'RLS-RECUR') order by o.issue_date limit 1$$,
+  $$values ('PO-LG-2026-14'::text, 'Campaign'::text, 'Launch planned for the second week.'::text, E'Payment due in 14 days.\nGST charged as applicable.'::text, 'Authorised Signatory'::text, 900::numeric, 900::numeric)$$,
+  'Recurring draft preserves source invoice details and line totals'
+);
+select results_eq(
+  $$select generated_count, next_invoice_on, status from public.recurring_invoice_schedules where invoice_prefix = 'RLS-RECUR'$$,
+  $$values (1, (current_date + interval '1 month')::date, 'active'::text)$$,
+  'Monthly schedule advances from its original anchor date after generation'
+);
+select results_eq(
+  $$select public.generate_due_recurring_invoice_drafts('20000000-0000-4000-8000-000000000001', current_date, 10)$$,
+  $$values (0)$$,
+  'Retrying the same billing period does not create a duplicate invoice'
+);
+select ok(public.set_recurring_invoice_schedule_status(
+  '20000000-0000-4000-8000-000000000001',
+  (select id from public.recurring_invoice_schedules where invoice_prefix = 'RLS-RECUR'), 'paused'
+), 'Finance owner can pause an active recurring schedule');
+select results_eq(
+  $$select public.generate_due_recurring_invoice_drafts('20000000-0000-4000-8000-000000000001', current_date + interval '2 months', 10)$$,
+  $$values (0)$$,
+  'Paused schedules do not generate invoices even when their date is due'
+);
+select ok(public.set_recurring_invoice_schedule_status(
+  '20000000-0000-4000-8000-000000000001',
+  (select id from public.recurring_invoice_schedules where invoice_prefix = 'RLS-RECUR'), 'active'
+), 'Finance owner can resume a paused recurring schedule');
+select results_eq(
+  $$select public.generate_due_recurring_invoice_drafts('20000000-0000-4000-8000-000000000001', current_date + interval '1 month', 10)$$,
+  $$values (1)$$,
+  'Resumed schedule creates its next due draft'
+);
+select results_eq(
+  $$select count(*)::bigint from public.recurring_invoice_occurrences where schedule_id = (select id from public.recurring_invoice_schedules where invoice_prefix = 'RLS-RECUR')$$,
+  $$values (2::bigint)$$,
+  'Each monthly period has one durable occurrence record'
+);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
+select results_eq(
+  $$select count(*)::bigint from public.recurring_invoice_schedules where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Another tenant cannot view recurring schedules'
+);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+select throws_ok(
+  $$select public.create_recurring_invoice_schedule('20000000-0000-4000-8000-000000000001', (select id from public.invoices where invoice_number = 'RLS-DOC-REFERENCE-INVOICE-001'), 'monthly', current_date, null, 'RLS-EMP')$$,
+  '42501', 'Finance permission required', 'Manager without finance permission cannot create recurring schedules'
+);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+select throws_ok(
+  $$select public.create_recurring_invoice_schedule('20000000-0000-4000-8000-000000000001', (select id from public.invoices where invoice_number = 'RLS-DOC-REFERENCE-INVOICE-001'), 'monthly', current_date + 10, current_date + 5, 'RLS-BAD')$$,
+  '22023', 'Invalid recurring invoice schedule', 'Recurring schedule cannot end before its first invoice date'
 );
 
 select * from finish();
