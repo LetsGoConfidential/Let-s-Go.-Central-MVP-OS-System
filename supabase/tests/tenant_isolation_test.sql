@@ -1,6 +1,6 @@
 begin;
 
-select plan(214);
+select plan(222);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -1505,6 +1505,38 @@ select results_eq(
   $$select count(*)::bigint from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001'$$,
   $$values (0::bigint)$$,
   'Another tenant cannot read document template names or configuration'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+select ok(public.create_invoice_with_items_from_template(
+  '20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001',
+  'RLS-GROUPED-INVOICE-001', 'INR', 180, current_date, current_date + 7,
+  '[{"group_name":"Strategy","description":"Planning workshop","quantity":2,"unit":"hours","unit_price":100},{"group_name":"Production","description":"Campaign assets","quantity":3,"unit":"pieces","unit_price":600}]'::jsonb,
+  (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'invoice' and is_default)
+) is not null, 'Invoice draft accepts multiple grouped deliverable lines');
+select results_eq(
+  $$select i.subtotal::numeric, i.tax::numeric, i.total::numeric, count(ii.id)::bigint from public.invoices i join public.invoice_items ii on ii.organization_id = i.organization_id and ii.invoice_id = i.id where i.invoice_number = 'RLS-GROUPED-INVOICE-001' group by i.id$$,
+  $$values (2000::numeric, 180::numeric, 2180::numeric, 2::bigint)$$,
+  'Invoice totals recalculate across all grouped lines'
+);
+select results_eq(
+  $$select group_name, description, quantity::numeric, unit, unit_price::numeric from public.invoice_items where invoice_id = (select id from public.invoices where invoice_number = 'RLS-GROUPED-INVOICE-001') order by description$$,
+  $$values ('Production'::text, 'Campaign assets'::text, 3::numeric, 'pieces'::text, 600::numeric), ('Strategy'::text, 'Planning workshop'::text, 2::numeric, 'hours'::text, 100::numeric)$$,
+  'Invoice stores line groups and unit labels'
+);
+select ok(public.create_quotation_with_items_from_template(
+  '20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001',
+  'RLS-GROUPED-QUOTE-001', 'INR', 180, current_date, current_date + 14,
+  '[{"group_name":"Strategy","description":"Planning workshop","quantity":2,"unit":"hours","unit_price":100},{"group_name":"Production","description":"Campaign assets","quantity":3,"unit":"pieces","unit_price":600}]'::jsonb,
+  (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'quotation' and is_default), null
+) is not null, 'Quotation draft accepts multiple grouped deliverable lines');
+select ok(public.transition_quotation('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-GROUPED-QUOTE-001'), 'send'), 'Grouped quotation can be sent for lifecycle testing');
+select ok(public.transition_quotation('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-GROUPED-QUOTE-001'), 'accept'), 'Grouped quotation can be accepted');
+select ok(public.convert_quotation_to_invoice('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-GROUPED-QUOTE-001'), 'RLS-GROUPED-CONVERTED-001', current_date, current_date + 7) is not null, 'Grouped quotation converts to invoice');
+select results_eq(
+  $$select group_name, description, quantity::numeric, unit, unit_price::numeric from public.invoice_items where invoice_id = (select id from public.invoices where invoice_number = 'RLS-GROUPED-CONVERTED-001') order by description$$,
+  $$values ('Production'::text, 'Campaign assets'::text, 3::numeric, 'pieces'::text, 600::numeric), ('Strategy'::text, 'Planning workshop'::text, 2::numeric, 'hours'::text, 100::numeric)$$,
+  'Conversion preserves all grouped lines and unit labels'
 );
 
 select * from finish();

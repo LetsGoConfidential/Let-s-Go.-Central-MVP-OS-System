@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isOneOf } from "@/lib/validation";
+import type { Json } from "@/lib/supabase/database.types";
 
 const paymentMethods = ["bank_transfer", "cash", "card", "cheque", "other"] as const;
 
@@ -23,22 +24,51 @@ function fail(organizationId: string, reason = "invalid"): never {
   redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&error=${reason}`);
 }
 
+type DocumentLine = { group_name: string; description: string; quantity: number; unit: string; unit_price: number };
+
+function readDocumentLines(formData: FormData, organizationId: string, tax: number): DocumentLine[] {
+  let value: unknown;
+  try {
+    value = JSON.parse(String(formData.get("line_items") ?? ""));
+  } catch {
+    fail(organizationId);
+  }
+  if (!Array.isArray(value) || value.length < 1 || value.length > 50) fail(organizationId);
+  let subtotal = 0;
+  const lines = value.map((entry): DocumentLine => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) fail(organizationId);
+    const source = entry as Record<string, unknown>;
+    const description = typeof source.description === "string" ? source.description.trim() : "";
+    const groupName = typeof source.group_name === "string" ? source.group_name.trim() : "";
+    const unit = typeof source.unit === "string" ? source.unit.trim() : "unit";
+    const quantity = Number(source.quantity);
+    const unitPrice = Number(source.unit_price);
+    if (description.length < 1 || description.length > 240 || groupName.length > 80 || unit.length < 1 || unit.length > 30
+      || !Number.isFinite(quantity) || quantity <= 0 || quantity > 9999999999
+      || !Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 999999999999.99
+      || quantity * unitPrice > 999999999999.99) fail(organizationId);
+    subtotal += quantity * unitPrice;
+    if (subtotal > 999999999999.99) fail(organizationId);
+    return { group_name: groupName, description, quantity, unit, unit_price: unitPrice };
+  });
+  if (!Number.isFinite(tax) || tax < 0 || tax > 999999999999.99 || subtotal + tax > 999999999999.99) fail(organizationId);
+  return lines;
+}
+
 export async function createInvoice(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   const clientId = String(formData.get("client_id") ?? "");
   const invoiceNumber = String(formData.get("invoice_number") ?? "").trim();
   const templateId = String(formData.get("document_template_id") ?? "");
   const currency = String(formData.get("currency") ?? "INR").toUpperCase();
-  const description = String(formData.get("line_description") ?? "").trim();
-  const quantity = Number(formData.get("quantity") ?? 0);
-  const unitPrice = Number(formData.get("unit_price") ?? -1);
   const tax = Number(formData.get("tax") ?? 0);
   const issueDate = String(formData.get("issue_date") ?? "");
   const dueDate = String(formData.get("due_date") ?? "");
-  if (!organizationId || !clientId || invoiceNumber.length < 2 || invoiceNumber.length > 40 || !/^[A-Z]{3}$/.test(currency) || description.length < 1 || description.length > 240 || !Number.isFinite(quantity) || quantity <= 0 || quantity > 9999999999 || !Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 999999999999.99 || !Number.isFinite(tax) || tax < 0 || tax > 999999999999.99 || quantity * unitPrice + tax > 999999999999.99 || !issueDate || !dueDate || dueDate < issueDate) fail(organizationId);
+  const lines = readDocumentLines(formData, organizationId, tax);
+  if (!organizationId || !clientId || invoiceNumber.length < 2 || invoiceNumber.length > 40 || !/^[A-Z]{3}$/.test(currency) || !/^\d{4}-\d{2}-\d{2}$/.test(issueDate) || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || dueDate < issueDate) fail(organizationId);
 
   const supabase = await authorizedFinanceClient(organizationId);
-  const { error } = await supabase.rpc("create_invoice_from_template", {
+  const { error } = await supabase.rpc("create_invoice_with_items_from_template", {
     target_org: organizationId,
     target_client: clientId,
     new_invoice_number: invoiceNumber,
@@ -46,9 +76,7 @@ export async function createInvoice(formData: FormData) {
     invoice_tax: tax,
     new_issue_date: issueDate,
     new_due_date: dueDate,
-    line_description: description,
-    line_quantity: quantity,
-    line_unit_price: unitPrice,
+    target_items: lines as unknown as Json,
     selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");
@@ -63,23 +91,17 @@ export async function createQuotation(formData: FormData) {
   const quotationNumber = String(formData.get("quotation_number") ?? "").trim();
   const templateId = String(formData.get("document_template_id") ?? "");
   const currency = String(formData.get("currency") ?? "INR").toUpperCase();
-  const description = String(formData.get("line_description") ?? "").trim();
-  const quantity = Number(formData.get("quantity") ?? 0);
-  const unitPrice = Number(formData.get("unit_price") ?? -1);
   const tax = Number(formData.get("tax") ?? 0);
   const issueDate = String(formData.get("issue_date") ?? "");
   const validUntil = String(formData.get("valid_until") ?? "");
   const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  const lines = readDocumentLines(formData, organizationId, tax);
   if (!organizationId || !clientId || quotationNumber.length < 2 || quotationNumber.length > 40
-    || !/^[A-Z]{3}$/.test(currency) || description.length < 1 || description.length > 240
-    || !Number.isFinite(quantity) || quantity <= 0 || quantity > 9999999999
-    || !Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 999999999999.99
-    || quantity * unitPrice > 999999999999.99 || !Number.isFinite(tax) || tax < 0 || tax > 999999999999.99
-    || quantity * unitPrice + tax > 999999999999.99 || !datePattern.test(issueDate)
+    || !/^[A-Z]{3}$/.test(currency) || !datePattern.test(issueDate)
     || !datePattern.test(validUntil) || validUntil < issueDate) fail(organizationId);
 
   const supabase = await authorizedFinanceClient(organizationId);
-  const { error } = await supabase.rpc("create_quotation_from_template", {
+  const { error } = await supabase.rpc("create_quotation_with_items_from_template", {
     target_org: organizationId,
     target_client: clientId,
     new_quotation_number: quotationNumber,
@@ -87,9 +109,7 @@ export async function createQuotation(formData: FormData) {
     quote_tax: tax,
     quote_issue_date: issueDate,
     quote_valid_until: validUntil,
-    line_description: description,
-    line_quantity: quantity,
-    line_unit_price: unitPrice,
+    target_items: lines as unknown as Json,
     selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");
