@@ -1587,6 +1587,7 @@ select throws_ok(
   $$update public.quotations set purchase_order_number = 'POST-ISSUE-CHANGE' where quotation_number = 'RLS-DOC-REFERENCE-QUOTE-001'$$,
   '22023', 'Document references cannot be changed after issue', 'Issued quotation references and custom fields are immutable'
 );
+update public.invoices set status = 'sent' where invoice_number = 'RLS-DOC-REFERENCE-CONVERTED-001';
 select throws_ok(
   $$update public.invoices set document_terms = 'Changed after issue' where invoice_number = 'RLS-DOC-REFERENCE-CONVERTED-001'$$,
   '22023', 'Document references cannot be changed after issue', 'Converted invoice terms are immutable after issue'
