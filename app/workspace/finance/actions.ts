@@ -27,6 +27,7 @@ export async function createInvoice(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   const clientId = String(formData.get("client_id") ?? "");
   const invoiceNumber = String(formData.get("invoice_number") ?? "").trim();
+  const templateId = String(formData.get("document_template_id") ?? "");
   const currency = String(formData.get("currency") ?? "INR").toUpperCase();
   const description = String(formData.get("line_description") ?? "").trim();
   const quantity = Number(formData.get("quantity") ?? 0);
@@ -37,7 +38,7 @@ export async function createInvoice(formData: FormData) {
   if (!organizationId || !clientId || invoiceNumber.length < 2 || invoiceNumber.length > 40 || !/^[A-Z]{3}$/.test(currency) || description.length < 1 || description.length > 240 || !Number.isFinite(quantity) || quantity <= 0 || quantity > 9999999999 || !Number.isFinite(unitPrice) || unitPrice < 0 || unitPrice > 999999999999.99 || !Number.isFinite(tax) || tax < 0 || tax > 999999999999.99 || quantity * unitPrice + tax > 999999999999.99 || !issueDate || !dueDate || dueDate < issueDate) fail(organizationId);
 
   const supabase = await authorizedFinanceClient(organizationId);
-  const { error } = await supabase.rpc("create_invoice_with_item", {
+  const { error } = await supabase.rpc("create_invoice_from_template", {
     target_org: organizationId,
     target_client: clientId,
     new_invoice_number: invoiceNumber,
@@ -48,6 +49,7 @@ export async function createInvoice(formData: FormData) {
     line_description: description,
     line_quantity: quantity,
     line_unit_price: unitPrice,
+    selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");
   revalidatePath("/workspace");
@@ -59,6 +61,7 @@ export async function createQuotation(formData: FormData) {
   const organizationId = String(formData.get("organization_id") ?? "");
   const clientId = String(formData.get("client_id") ?? "");
   const quotationNumber = String(formData.get("quotation_number") ?? "").trim();
+  const templateId = String(formData.get("document_template_id") ?? "");
   const currency = String(formData.get("currency") ?? "INR").toUpperCase();
   const description = String(formData.get("line_description") ?? "").trim();
   const quantity = Number(formData.get("quantity") ?? 0);
@@ -76,7 +79,7 @@ export async function createQuotation(formData: FormData) {
     || !datePattern.test(validUntil) || validUntil < issueDate) fail(organizationId);
 
   const supabase = await authorizedFinanceClient(organizationId);
-  const { error } = await supabase.rpc("create_quotation_with_item", {
+  const { error } = await supabase.rpc("create_quotation_from_template", {
     target_org: organizationId,
     target_client: clientId,
     new_quotation_number: quotationNumber,
@@ -87,11 +90,40 @@ export async function createQuotation(formData: FormData) {
     line_description: description,
     line_quantity: quantity,
     line_unit_price: unitPrice,
-    target_lead: null,
+    selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");
   revalidatePath("/workspace/finance");
   redirect(`/workspace/finance?organization=${encodeURIComponent(organizationId)}&created=quotation`);
+}
+
+export async function createFinanceTemplateVersion(formData: FormData) {
+  const organizationId = String(formData.get("organization_id") ?? "");
+  const sourceTemplate = String(formData.get("source_template_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const accent = String(formData.get("accent") ?? "");
+  const style = String(formData.get("style") ?? "clean");
+  const validIds = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const validColors = ["#3474F5", "#7258D8", "#17A47B", "#E39A2E", "#192230"];
+  if (!organizationId || !validIds.test(sourceTemplate) || name.length < 2 || name.length > 100
+    || !validColors.includes(accent) || !["clean", "editorial", "formal"].includes(style)) fail(organizationId);
+  const supabase = await authorizedFinanceClient(organizationId);
+  const { error } = await supabase.rpc("create_finance_template_version", {
+    target_org: organizationId,
+    source_template: sourceTemplate,
+    template_name: name,
+    accent_color: accent,
+    template_style: style,
+    group_line_items: formData.get("group_line_items") === "on",
+    show_tax: formData.get("show_tax") === "on",
+    show_signature: formData.get("show_signature") === "on",
+    show_terms: formData.get("show_terms") === "on",
+    set_as_default: formData.get("set_as_default") === "on",
+  });
+  if (error) fail(organizationId, "save");
+  revalidatePath("/workspace/finance");
+  revalidatePath("/workspace/finance/templates");
+  redirect(`/workspace/finance/templates?organization=${encodeURIComponent(organizationId)}&created=template`);
 }
 
 export async function transitionQuotation(formData: FormData) {

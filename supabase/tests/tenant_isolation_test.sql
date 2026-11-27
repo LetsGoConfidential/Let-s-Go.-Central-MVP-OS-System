@@ -1,6 +1,6 @@
 begin;
 
-select plan(199);
+select plan(214);
 
 insert into auth.users (
   id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -1437,6 +1437,74 @@ select results_eq(
   $$select count(*)::bigint from public.quotations where organization_id = '20000000-0000-4000-8000-000000000001'$$,
   $$values (0::bigint)$$,
   'Another tenant cannot read quotations or totals'
+);
+
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000001';
+
+select results_eq(
+  $$select count(*)::bigint from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'invoice' and is_active$$,
+  $$values (4::bigint)$$,
+  'A workspace is provisioned with four invoice formats'
+);
+select results_eq(
+  $$select count(*)::bigint from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'quotation' and is_active$$,
+  $$values (1::bigint)$$,
+  'A workspace is provisioned with a quotation format'
+);
+select ok(public.create_invoice_from_template(
+  '20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001',
+  'RLS-TEMPLATE-INVOICE-001', 'INR', 0, current_date, current_date + 7,
+  'Retainer service', 1, 250,
+  (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'invoice' and is_default)
+) is not null, 'Invoice draft can be created from the selected tenant template');
+select results_eq(
+  $$select document_template_version, document_template_snapshot ->> 'name' from public.invoices where invoice_number = 'RLS-TEMPLATE-INVOICE-001'$$,
+  $$values (1, 'Service Retainer'::text)$$,
+  'Invoice captures a versioned immutable template snapshot'
+);
+select throws_ok(
+  $$update public.invoices set document_template_version = 99 where invoice_number = 'RLS-TEMPLATE-INVOICE-001'$$,
+  'P0001', 'Document template snapshot can only be attached once to a draft', 'Saved invoice template snapshots cannot be rewritten'
+);
+select ok(public.create_finance_template_version(
+  '20000000-0000-4000-8000-000000000001',
+  (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'invoice' and is_default),
+  'Service Retainer · Brand v2', '#7258D8', 'editorial', true, true, true, true, true
+) is not null, 'Finance owner can create a new invoice template version');
+select results_eq(
+  $$select t.version, t.is_default, i.document_template_version from public.finance_document_templates t cross join public.invoices i where t.organization_id = '20000000-0000-4000-8000-000000000001' and t.document_type = 'invoice' and t.is_default and i.invoice_number = 'RLS-TEMPLATE-INVOICE-001'$$,
+  $$values (2, true, 1)$$,
+  'Publishing a new default does not change existing invoice snapshots'
+);
+select ok(public.create_quotation_from_template(
+  '20000000-0000-4000-8000-000000000001', '40000000-0000-4000-8000-000000000001',
+  'RLS-TEMPLATE-QUOTE-001', 'INR', 0, current_date, current_date + 14,
+  'Campaign plan', 1, 500,
+  (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and document_type = 'quotation' and is_default)
+) is not null, 'Quotation draft can be created from the selected tenant template');
+select results_eq(
+  $$select document_template_version, document_template_snapshot ->> 'name' from public.quotations where quotation_number = 'RLS-TEMPLATE-QUOTE-001'$$,
+  $$values (1, 'Client Quotation'::text)$$,
+  'Quotation stores its selected template version and settings snapshot'
+);
+select ok(public.transition_quotation('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-TEMPLATE-QUOTE-001'), 'send'), 'Templated quote can enter the sent state');
+select ok(public.transition_quotation('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-TEMPLATE-QUOTE-001'), 'accept'), 'Templated quote can enter the accepted state');
+select ok(public.convert_quotation_to_invoice('20000000-0000-4000-8000-000000000001', (select id from public.quotations where quotation_number = 'RLS-TEMPLATE-QUOTE-001'), 'RLS-TEMPLATE-CONVERTED-001', current_date, current_date + 7) is not null, 'Templated quotation converts to an invoice');
+select results_eq(
+  $$select i.document_template_version, i.document_template_snapshot ->> 'name' from public.invoices i where i.invoice_number = 'RLS-TEMPLATE-CONVERTED-001'$$,
+  $$values (1, 'Client Quotation'::text)$$,
+  'Converted invoice retains the quotation format snapshot'
+);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000003';
+select throws_ok(
+  $$select public.create_finance_template_version('20000000-0000-4000-8000-000000000001', (select id from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001' and is_default limit 1), 'Employee template', '#3474F5', 'clean', false, true, true, true, false)$$,
+  '42501', 'Finance permission required', 'Employee cannot publish finance template versions'
+);
+set local request.jwt.claim.sub = '10000000-0000-4000-8000-000000000004';
+select results_eq(
+  $$select count(*)::bigint from public.finance_document_templates where organization_id = '20000000-0000-4000-8000-000000000001'$$,
+  $$values (0::bigint)$$,
+  'Another tenant cannot read document template names or configuration'
 );
 
 select * from finish();
