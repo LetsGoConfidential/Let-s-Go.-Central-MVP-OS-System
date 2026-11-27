@@ -14,8 +14,8 @@ drop function public.create_quotation_document_from_template(uuid, uuid, text, c
 create function public.create_invoice_document_from_template(
   target_org uuid, target_client uuid, new_invoice_number text, invoice_currency char,
   invoice_tax numeric, new_issue_date date, new_due_date date, target_items jsonb,
-  document_purchase_order text, document_custom_fields jsonb, document_notes text,
-  document_terms text, document_signature_label text, selected_template uuid default null
+  document_purchase_order text, document_custom_fields jsonb, notes_input text,
+  terms_input text, signature_label_input text, selected_template uuid default null
 )
 returns uuid language plpgsql security definer set search_path = '' as $$
 declare new_invoice_id uuid;
@@ -25,9 +25,9 @@ begin
   end if;
   if document_purchase_order is null or char_length(btrim(document_purchase_order)) > 60
     or not public.finance_custom_fields_valid(document_custom_fields)
-    or document_notes is null or char_length(document_notes) > 2000
-    or document_terms is null or char_length(document_terms) > 5000
-    or document_signature_label is null or char_length(document_signature_label) > 80 then
+    or notes_input is null or char_length(notes_input) > 2000
+    or terms_input is null or char_length(terms_input) > 5000
+    or signature_label_input is null or char_length(signature_label_input) > 80 then
     raise exception 'Invalid document references, fields, or terms' using errcode = '22023';
   end if;
   new_invoice_id := public.create_invoice_with_items_from_template(
@@ -35,7 +35,7 @@ begin
     target_items, selected_template
   );
   update public.invoices set purchase_order_number = btrim(document_purchase_order), custom_fields = document_custom_fields,
-    document_notes = btrim(document_notes), document_terms = btrim(document_terms), signature_label = btrim(document_signature_label)
+    document_notes = btrim(notes_input), document_terms = btrim(terms_input), signature_label = btrim(signature_label_input)
     where organization_id = target_org and id = new_invoice_id;
   return new_invoice_id;
 end;
@@ -44,8 +44,8 @@ $$;
 create function public.create_quotation_document_from_template(
   target_org uuid, target_client uuid, new_quotation_number text, quote_currency char,
   quote_tax numeric, quote_issue_date date, quote_valid_until date, target_items jsonb,
-  document_purchase_order text, document_custom_fields jsonb, document_notes text,
-  document_terms text, document_signature_label text, selected_template uuid default null
+  document_purchase_order text, document_custom_fields jsonb, notes_input text,
+  terms_input text, signature_label_input text, selected_template uuid default null
 )
 returns uuid language plpgsql security definer set search_path = '' as $$
 declare new_quote_id uuid;
@@ -55,9 +55,9 @@ begin
   end if;
   if document_purchase_order is null or char_length(btrim(document_purchase_order)) > 60
     or not public.finance_custom_fields_valid(document_custom_fields)
-    or document_notes is null or char_length(document_notes) > 2000
-    or document_terms is null or char_length(document_terms) > 5000
-    or document_signature_label is null or char_length(document_signature_label) > 80 then
+    or notes_input is null or char_length(notes_input) > 2000
+    or terms_input is null or char_length(terms_input) > 5000
+    or signature_label_input is null or char_length(signature_label_input) > 80 then
     raise exception 'Invalid document references, fields, or terms' using errcode = '22023';
   end if;
   new_quote_id := public.create_quotation_with_items_from_template(
@@ -65,7 +65,7 @@ begin
     target_items, selected_template, null
   );
   update public.quotations set purchase_order_number = btrim(document_purchase_order), custom_fields = document_custom_fields,
-    document_notes = btrim(document_notes), document_terms = btrim(document_terms), signature_label = btrim(document_signature_label)
+    document_notes = btrim(notes_input), document_terms = btrim(terms_input), signature_label = btrim(signature_label_input)
     where organization_id = target_org and id = new_quote_id;
   return new_quote_id;
 end;

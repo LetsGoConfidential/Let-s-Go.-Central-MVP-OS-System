@@ -106,9 +106,9 @@ export async function createInvoice(formData: FormData) {
     target_items: lines as unknown as Json,
     document_purchase_order: purchaseOrderNumber,
     document_custom_fields: customFields as unknown as Json,
-    document_notes: documentNotes,
-    document_terms: documentTerms,
-    document_signature_label: signatureLabel,
+    notes_input: documentNotes,
+    terms_input: documentTerms,
+    signature_label_input: signatureLabel,
     selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");
@@ -149,9 +149,9 @@ export async function createQuotation(formData: FormData) {
     target_items: lines as unknown as Json,
     document_purchase_order: purchaseOrderNumber,
     document_custom_fields: customFields as unknown as Json,
-    document_notes: documentNotes,
-    document_terms: documentTerms,
-    document_signature_label: signatureLabel,
+    notes_input: documentNotes,
+    terms_input: documentTerms,
+    signature_label_input: signatureLabel,
     selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");
