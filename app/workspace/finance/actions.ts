@@ -25,6 +25,28 @@ function fail(organizationId: string, reason = "invalid"): never {
 }
 
 type DocumentLine = { group_name: string; description: string; quantity: number; unit: string; unit_price: number };
+type DocumentCustomField = { label: string; value: string };
+
+function readDocumentCustomFields(formData: FormData, organizationId: string): DocumentCustomField[] {
+  let value: unknown;
+  try {
+    value = JSON.parse(String(formData.get("custom_fields") ?? "[]"));
+  } catch {
+    fail(organizationId);
+  }
+  if (!Array.isArray(value) || value.length > 20) fail(organizationId);
+  const labels = new Set<string>();
+  return value.map((entry): DocumentCustomField => {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) fail(organizationId);
+    const source = entry as Record<string, unknown>;
+    const label = typeof source.label === "string" ? source.label.trim() : "";
+    const fieldValue = typeof source.value === "string" ? source.value.trim() : "";
+    const normalizedLabel = label.toLocaleLowerCase("en");
+    if (label.length < 1 || label.length > 60 || fieldValue.length < 1 || fieldValue.length > 240 || labels.has(normalizedLabel)) fail(organizationId);
+    labels.add(normalizedLabel);
+    return { label, value: fieldValue };
+  });
+}
 
 function readDocumentLines(formData: FormData, organizationId: string, tax: number): DocumentLine[] {
   let value: unknown;
@@ -60,15 +82,17 @@ export async function createInvoice(formData: FormData) {
   const clientId = String(formData.get("client_id") ?? "");
   const invoiceNumber = String(formData.get("invoice_number") ?? "").trim();
   const templateId = String(formData.get("document_template_id") ?? "");
+  const purchaseOrderNumber = String(formData.get("purchase_order_number") ?? "").trim();
+  const customFields = readDocumentCustomFields(formData, organizationId);
   const currency = String(formData.get("currency") ?? "INR").toUpperCase();
   const tax = Number(formData.get("tax") ?? 0);
   const issueDate = String(formData.get("issue_date") ?? "");
   const dueDate = String(formData.get("due_date") ?? "");
   const lines = readDocumentLines(formData, organizationId, tax);
-  if (!organizationId || !clientId || invoiceNumber.length < 2 || invoiceNumber.length > 40 || !/^[A-Z]{3}$/.test(currency) || !/^\d{4}-\d{2}-\d{2}$/.test(issueDate) || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || dueDate < issueDate) fail(organizationId);
+  if (!organizationId || !clientId || invoiceNumber.length < 2 || invoiceNumber.length > 40 || purchaseOrderNumber.length > 60 || !/^[A-Z]{3}$/.test(currency) || !/^\d{4}-\d{2}-\d{2}$/.test(issueDate) || !/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || dueDate < issueDate) fail(organizationId);
 
   const supabase = await authorizedFinanceClient(organizationId);
-  const { error } = await supabase.rpc("create_invoice_with_items_from_template", {
+  const { error } = await supabase.rpc("create_invoice_document_from_template", {
     target_org: organizationId,
     target_client: clientId,
     new_invoice_number: invoiceNumber,
@@ -77,6 +101,8 @@ export async function createInvoice(formData: FormData) {
     new_issue_date: issueDate,
     new_due_date: dueDate,
     target_items: lines as unknown as Json,
+    document_purchase_order: purchaseOrderNumber,
+    document_custom_fields: customFields as unknown as Json,
     selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");
@@ -90,18 +116,20 @@ export async function createQuotation(formData: FormData) {
   const clientId = String(formData.get("client_id") ?? "");
   const quotationNumber = String(formData.get("quotation_number") ?? "").trim();
   const templateId = String(formData.get("document_template_id") ?? "");
+  const purchaseOrderNumber = String(formData.get("purchase_order_number") ?? "").trim();
+  const customFields = readDocumentCustomFields(formData, organizationId);
   const currency = String(formData.get("currency") ?? "INR").toUpperCase();
   const tax = Number(formData.get("tax") ?? 0);
   const issueDate = String(formData.get("issue_date") ?? "");
   const validUntil = String(formData.get("valid_until") ?? "");
   const datePattern = /^\d{4}-\d{2}-\d{2}$/;
   const lines = readDocumentLines(formData, organizationId, tax);
-  if (!organizationId || !clientId || quotationNumber.length < 2 || quotationNumber.length > 40
+  if (!organizationId || !clientId || quotationNumber.length < 2 || quotationNumber.length > 40 || purchaseOrderNumber.length > 60
     || !/^[A-Z]{3}$/.test(currency) || !datePattern.test(issueDate)
     || !datePattern.test(validUntil) || validUntil < issueDate) fail(organizationId);
 
   const supabase = await authorizedFinanceClient(organizationId);
-  const { error } = await supabase.rpc("create_quotation_with_items_from_template", {
+  const { error } = await supabase.rpc("create_quotation_document_from_template", {
     target_org: organizationId,
     target_client: clientId,
     new_quotation_number: quotationNumber,
@@ -110,6 +138,8 @@ export async function createQuotation(formData: FormData) {
     quote_issue_date: issueDate,
     quote_valid_until: validUntil,
     target_items: lines as unknown as Json,
+    document_purchase_order: purchaseOrderNumber,
+    document_custom_fields: customFields as unknown as Json,
     selected_template: templateId || null,
   });
   if (error) fail(organizationId, "save");

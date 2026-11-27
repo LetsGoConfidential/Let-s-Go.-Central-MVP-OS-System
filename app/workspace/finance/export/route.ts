@@ -19,13 +19,13 @@ export async function GET(request: Request) {
   if (!allowed) return new Response("Forbidden", { status: 403 });
 
   const { data: invoices, error } = await supabase.from("invoices")
-    .select("id,invoice_number,status,currency,subtotal,tax,total,credit_total,amount_paid,issue_date,due_date,created_at,clients(name)")
+    .select("id,invoice_number,status,currency,subtotal,tax,total,credit_total,amount_paid,issue_date,due_date,purchase_order_number,custom_fields,created_at,clients(name)")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
   if (error) return new Response("Export unavailable", { status: 500 });
   const ids = (invoices ?? []).map(({ id }) => id);
   const { data: items, error: itemError } = ids.length
-    ? await supabase.from("invoice_items").select("invoice_id,description,quantity,unit_price,line_total").eq("organization_id", organizationId).in("invoice_id", ids).order("created_at")
+    ? await supabase.from("invoice_items").select("invoice_id,group_name,description,quantity,unit,unit_price,line_total").eq("organization_id", organizationId).in("invoice_id", ids).order("created_at")
     : { data: [], error: null };
   if (itemError) return new Response("Export unavailable", { status: 500 });
   const { data: credits, error: creditError } = ids.length
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     : { data: [], error: null };
   if (refundError) return new Response("Export unavailable", { status: 500 });
 
-  const headings = ["Invoice number", "Client", "Status", "Currency", "Description", "Quantity", "Unit price", "Line total", "Subtotal", "Tax", "Invoice total", "Credit total", "Credit notes", "Refund total", "Refunds", "Net paid", "Balance due", "Issue date", "Due date"];
+  const headings = ["Invoice number", "Client", "Status", "Currency", "PO / reference", "Additional fields", "Group", "Description", "Quantity", "Unit", "Unit price", "Line total", "Subtotal", "Tax", "Invoice total", "Credit total", "Credit notes", "Refund total", "Refunds", "Net paid", "Balance due", "Issue date", "Due date"];
   const rows = (invoices ?? []).flatMap((invoice) => {
     const client = Array.isArray(invoice.clients) ? invoice.clients[0]?.name ?? "" : invoice.clients?.name ?? "";
     const invoiceItems = (items ?? []).filter((item) => item.invoice_id === invoice.id);
@@ -47,7 +47,7 @@ export async function GET(request: Request) {
     const refundTotal = invoiceRefunds.reduce((sum, refund) => sum + Number(refund.amount), 0);
     const refundDetails = invoiceRefunds.map((refund) => `${refund.reason} (${refund.amount})`).join("; ");
     const lines = invoiceItems.length ? invoiceItems : [null];
-    return lines.map((item) => [invoice.invoice_number, client, invoice.status, invoice.currency.trim(), item?.description ?? "", item?.quantity ?? "", item?.unit_price ?? "", item?.line_total ?? "", invoice.subtotal, invoice.tax, invoice.total, invoice.credit_total, creditNotes, refundTotal, refundDetails, invoice.amount_paid, Math.max(0, Number(invoice.total) - Number(invoice.credit_total) - Number(invoice.amount_paid)), invoice.issue_date, invoice.due_date].map(csvCell).join(","));
+    return lines.map((item) => [invoice.invoice_number, client, invoice.status, invoice.currency.trim(), invoice.purchase_order_number, JSON.stringify(invoice.custom_fields), item?.group_name ?? "", item?.description ?? "", item?.quantity ?? "", item?.unit ?? "", item?.unit_price ?? "", item?.line_total ?? "", invoice.subtotal, invoice.tax, invoice.total, invoice.credit_total, creditNotes, refundTotal, refundDetails, invoice.amount_paid, Math.max(0, Number(invoice.total) - Number(invoice.credit_total) - Number(invoice.amount_paid)), invoice.issue_date, invoice.due_date].map(csvCell).join(","));
   });
   const body = [headings.map(csvCell).join(","), ...rows].join("\r\n");
   return new Response(`\uFEFF${body}`, {
