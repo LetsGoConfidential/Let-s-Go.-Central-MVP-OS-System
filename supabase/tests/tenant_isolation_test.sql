@@ -1464,7 +1464,7 @@ select results_eq(
 );
 select throws_ok(
   $$update public.invoices set document_template_version = 99 where invoice_number = 'RLS-TEMPLATE-INVOICE-001'$$,
-  'P0001', 'Document template snapshot can only be attached once to a draft', 'Saved invoice template snapshots cannot be rewritten'
+  '42501', null, 'Authenticated users cannot rewrite saved invoice template snapshots'
 );
 select ok(public.create_finance_template_version(
   '20000000-0000-4000-8000-000000000001',
